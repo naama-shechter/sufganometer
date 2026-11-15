@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">סופגנומטר</string>
+    <string name="title_activity_main">סופגנומטר</string>
+    <string name="package_name">com.sufganometer.app</string>
+    <string name="custom_url_scheme">com.sufganometer.app</string>
+</resources>
