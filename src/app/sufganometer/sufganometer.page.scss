@@ -2,7 +2,7 @@ $ink: #3b2311;
 $muted: #7a5a3a;
 $ground: #fff3d6;
 $jam: #c8102e;
-$gold: #f5a400;
+$brown: #b8571b; // כתום-חום של הצלחה
 $track: #f6e2bc;
 
 ion-content {
@@ -52,7 +52,7 @@ button {
   white-space: nowrap;
 
   .dot { width: 8px; height: 8px; border-radius: 50%; background: #b8692a; }
-  &.live .dot { background: $gold; animation: pulse 1.2s infinite; }
+  &.live .dot { background: $brown; animation: pulse 1.2s infinite; }
 }
 
 .connect {
@@ -114,16 +114,12 @@ button {
   gap: 2px;
 
   .big { font-size: 44px; font-weight: 900; line-height: 1.05; letter-spacing: -1px; }
-  .big.gold {
-    color: $gold;
-    -webkit-text-stroke: 1.5px $ink;
-    text-shadow: 0 3px 0 $ink;
-  }
-  .big.small { font-size: 36px; }
+  .big.brown { color: $brown; font-size: 42px; }
+  .big.small { font-size: 34px; }
   .caption { font-size: 14px; font-weight: 500; color: $muted; }
 
   &.pop { animation: pop 0.6s ease-out both; }
-  .wiggle { display: inline-block; animation: wiggle 0.8s ease-in-out 0.6s 3; }
+  .wiggle { display: inline-block; animation: wiggle 1.6s ease-in-out 0.6s 2; }
 }
 
 // סצנת המחבת – האנימציות רצות כמה פעמים ונעצרות
@@ -138,7 +134,7 @@ button {
     top: 52px;
     width: 90px;
     height: 90px;
-    animation: toss 1.1s ease-in-out 3;
+    animation: toss 1.1s ease-in-out 4;
   }
 
   .pan {
@@ -148,7 +144,7 @@ button {
     width: 260px;
     height: 80px;
     transform-origin: 70% 50%;
-    animation: pan-shake 0.55s ease-in-out 6;
+    animation: pan-shake 0.55s ease-in-out 8;
   }
 
   .drop {
@@ -161,7 +157,7 @@ button {
     border: 1.5px solid #c98b12;
     border-radius: 50% 50% 50% 50% / 60% 60% 40% 40%;
     opacity: 0;
-    animation: splash 1.1s ease-out 3 both;
+    animation: splash 1.1s ease-out 4;
   }
 }
 
@@ -260,7 +256,7 @@ button {
 
   &:active { transform: translateY(3px); box-shadow: 0 1px 0 $ink; }
   &.primary { background: $jam; color: #fff; }
-  &.walking { background: $gold; }
+  &.walking { background: $brown; color: #fff; }
   &.dark { background: $ink; color: $ground; }
   &.oops { color: $jam; }
   &.ghost { box-shadow: none; height: 48px; flex: none; }
@@ -298,6 +294,7 @@ button {
   pointer-events: none;
   overflow: hidden;
   z-index: 50;
+  animation: fade-out 0.6s ease-in 3.6s forwards;
 }
 
 .confetti {
@@ -305,8 +302,7 @@ button {
   top: -30px;
   animation-name: fall;
   animation-timing-function: linear;
-  animation-iteration-count: 1;
-  animation-fill-mode: both;
+  animation-iteration-count: infinite;
 }
 
 .fly-pan {
@@ -314,8 +310,7 @@ button {
   bottom: -50px;
   animation-name: fly;
   animation-timing-function: ease-in;
-  animation-iteration-count: 1;
-  animation-fill-mode: both;
+  animation-iteration-count: infinite;
 }
 
 // ---------- חלונות ----------
@@ -450,7 +445,7 @@ button {
   text-align: center;
   animation: zoom 0.25s ease-out;
 
-  &.gold { background: #fff0c7; }
+  &.warm { background: #fce6d4; }
   h2 { margin: 0; font-size: 23px; font-weight: 900; }
   p { margin: 0; font-size: 15px; line-height: 1.45; }
   .muted { font-size: 13px; color: $muted; }
@@ -467,19 +462,18 @@ button {
   100% { transform: scale(1) rotate(0deg); }
 }
 @keyframes wiggle {
-  0%, 100% { transform: rotate(0deg); }
-  25% { transform: rotate(-3deg); }
-  75% { transform: rotate(3deg); }
+  0%, 100% { transform: rotate(-3deg); }
+  50% { transform: rotate(3deg); }
 }
 @keyframes toss {
   0%, 100% { transform: translateY(0) rotate(0deg); }
   50% { transform: translateY(-70px) rotate(200deg); }
 }
 @keyframes pan-shake {
-  0%, 100% { transform: rotate(0deg); }
-  25% { transform: rotate(-4deg); }
-  75% { transform: rotate(4deg); }
+  0%, 100% { transform: rotate(-4deg); }
+  50% { transform: rotate(4deg); }
 }
+@keyframes fade-out { to { opacity: 0; } }
 @keyframes splash {
   0% { transform: translate(0, 0) scale(0.5); opacity: 0; }
   15% { opacity: 1; }

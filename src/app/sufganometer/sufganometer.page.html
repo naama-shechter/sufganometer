@@ -31,7 +31,7 @@
           </svg>
           <div class="ring-fill" [style.background]="ring().background"></div>
           @if (ring().showCaps) {
-            <span class="cap" style="left: 97.5px; top: 7.5px; background: #C8102E"></span>
+            <span class="cap" style="left: 97.5px; top: 7.5px" [style.background]="ring().capStartColor"></span>
             <span class="cap" [style.left.px]="ring().capX" [style.top.px]="ring().capY" [style.background]="ring().capColor"></span>
           }
           <svg class="layer" width="210" height="210" viewBox="0 0 260 260" aria-hidden="true">
@@ -59,7 +59,7 @@
           </div>
         } @else {
           <div class="headline">
-            <span class="big gold small">אפס חובות</span>
+            <span class="big brown small">אפס חובות</span>
             <span class="caption">הצעדים נאספים לבנק בינתיים</span>
           </div>
         }
@@ -92,7 +92,7 @@
             </div>
           </div>
           <div class="headline pop">
-            <span class="big gold wiggle">מותר לטגן!</span>
+            <span class="big brown wiggle">מותר לטגן!</span>
             <span class="caption">החוב נמחק. מחבתות למעלה!</span>
           </div>
         }
@@ -262,7 +262,7 @@
 <!-- ===== הודעת קיזוז / החלפה ===== -->
 @if (notice(); as n) {
   <div class="backdrop center" dir="rtl">
-    <div class="dialog" [class.gold]="n.gold" role="dialog" aria-modal="true" [attr.aria-label]="n.title">
+    <div class="dialog" [class.warm]="n.gold" role="dialog" aria-modal="true" [attr.aria-label]="n.title">
       <h2>{{ n.title }}</h2>
       <p>{{ n.body }}</p>
       <button type="button" class="btn primary full" (click)="closeNotice()">יאללה</button>

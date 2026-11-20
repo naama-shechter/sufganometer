@@ -3,7 +3,7 @@ import { IonContent } from '@ionic/angular/standalone';
 import { App } from '@capacitor/app';
 import type { PluginListenerHandle } from '@capacitor/core';
 import { PedometerService, SensorState, BankOutcome } from './pedometer.service';
-import { DONUT_TYPES, DonutType, fmt, ringColor, stepsFor } from './donut-calc';
+import { DONUT_TYPES, DonutType, fmt, ringColor, ringEnds, stepsFor } from './donut-calc';
 
 type SheetMode = 'add' | 'change' | 'queue' | null;
 
@@ -26,7 +26,7 @@ const SENSOR_LABELS: Record<SensorState, string> = {
 const PARTY_MS = 4200;
 const RING_R = 90; // רדיוס קו האמצע של הטבעת, בתוך קופסה של 210px
 
-const CONFETTI_COLORS = ['#C8102E', '#F5A400', '#3B2311', '#E8546B', '#F0B56C', '#FFD45C', '#8E0B20'];
+const CONFETTI_COLORS = ['#C8102E', '#F2C14E', '#3B2311', '#1F7A4D', '#E8546B', '#F0B56C', '#2F6FDE'];
 
 @Component({
   selector: 'app-sufganometer',
@@ -65,8 +65,8 @@ export class SufganometerPage implements OnInit, OnDestroy {
       `background: ${CONFETTI_COLORS[c % CONFETTI_COLORS.length]}`,
       `border-radius: ${c % 4 === 0 ? '50%' : '2px'}`,
       `--r: ${(c % 2 ? 1 : -1) * (360 + c * 24)}deg`,
-      `animation-duration: ${(2.4 + (c % 5) * 0.25).toFixed(2)}s`,
-      `animation-delay: ${((c * 0.11) % 1.2).toFixed(2)}s`,
+      `animation-duration: ${(2.6 + (c % 5) * 0.35).toFixed(2)}s`,
+      `animation-delay: -${((c * 0.23) % 3).toFixed(2)}s`,
     ].join('; ');
   });
 
@@ -75,8 +75,8 @@ export class SufganometerPage implements OnInit, OnDestroy {
       `left: ${left}%`,
       `--dx: ${j % 2 ? 50 : -50}px`,
       `--r: ${j % 2 ? 540 : -540}deg`,
-      `animation-duration: ${(2.6 + j * 0.2).toFixed(1)}s`,
-      `animation-delay: ${(j * 0.25).toFixed(2)}s`,
+      `animation-duration: ${(3.4 + j * 0.3).toFixed(1)}s`,
+      `animation-delay: -${(j * 0.9).toFixed(1)}s`,
     ].join('; '),
   );
 
@@ -96,10 +96,11 @@ export class SufganometerPage implements OnInit, OnDestroy {
   readonly ring = computed(() => {
     const p = this.progress();
     const deg = Math.max(0, Math.min(360, p * 360));
-    const end = ringColor(p);
+    const { start, end } = ringEnds(p);
     const rad = (deg * Math.PI) / 180;
     return {
-      background: `conic-gradient(from 0deg, #C8102E 0deg, ${end} ${deg.toFixed(1)}deg, transparent ${deg.toFixed(1)}deg)`,
+      background: `conic-gradient(from 0deg, ${start} 0deg, ${end} ${deg.toFixed(1)}deg, transparent ${deg.toFixed(1)}deg)`,
+      capStartColor: start,
       capX: 105 + RING_R * Math.sin(rad) - 7.5,
       capY: 105 - RING_R * Math.cos(rad) - 7.5,
       capColor: end,

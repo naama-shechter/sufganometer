@@ -55,7 +55,7 @@ export interface BurnStatus {
 }
 
 const RING_START = [200, 16, 46]; // #C8102E – אדום ריבה
-const RING_END = [245, 164, 0]; // #F5A400 – זהב "מותר לטגן"
+const RING_END = [184, 87, 27]; // #B8571B – כתום-חום, כמו "מותר לטגן"
 
 export function typeById(id: string): DonutType {
   return DONUT_TYPES.find((t) => t.id === id) ?? DONUT_TYPES[1];
@@ -135,10 +135,18 @@ export function computeStatus(
   };
 }
 
-/** צבע הטבעת בנקודה t (0..1): מאדום ריבה לזהב */
+/** צבע הטבעת בנקודה t (0..1): מאדום ריבה לכתום-חום */
 export function ringColor(t: number): string {
   const c = RING_START.map((a, i) => Math.round(a + (RING_END[i] - a) * Math.min(1, Math.max(0, t))));
   return `rgb(${c[0]}, ${c[1]}, ${c[2]})`;
+}
+
+/**
+ * צבעי שני הקצוות של הטבעת בהתקדמות p.
+ * ככל שמתקרבים לסגירה גם תחילת הטבעת מתחממת, כך שהחיבור בין הקצוות זורם בלי תפר.
+ */
+export function ringEnds(p: number): { start: string; end: string } {
+  return { start: ringColor(Math.max(0, (p - 0.6) / 0.4)), end: ringColor(p) };
 }
 
 export function fmt(n: number): string {
