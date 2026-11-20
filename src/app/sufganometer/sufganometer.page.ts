@@ -118,18 +118,14 @@ export class SufganometerPage implements OnInit, OnDestroy {
 
   readonly viewKicker = computed(() => {
     const st = this.s();
-    if (!st.viewed || !st.current) return '';
-    if (st.viewed.index === st.current.index) {
-      return st.queue > 1 ? `עכשיו שורפים · 1 מתוך ${st.queue}` : 'עכשיו שורפים';
-    }
-    return `בתצוגה · מקום ${st.viewed.index - st.current.index + 1} בתור`;
+    const v = st.viewed;
+    if (!v) return '';
+    const pos = st.slots.filter((x) => !x.burned && x.index <= v.index).length;
+    return st.queue > 1 ? `עכשיו שורפים · ${pos} מתוך ${st.queue}` : 'עכשיו שורפים';
   });
   readonly viewLine = computed(() => {
-    const st = this.s();
-    if (!st.viewed || !st.current) return '';
-    return st.viewed.index === st.current.index
-      ? `נשארו ${fmt(st.viewed.left)} צעדים לסופגנייה הזו`
-      : `תתחיל להישרף אחרי ${fmt(st.stepsUntilViewedStarts)} צעדים`;
+    const v = this.s().viewed;
+    return v ? `נשארו ${fmt(v.left)} צעדים לסופגנייה הזו` : '';
   });
   readonly queueLabel = computed(() => (this.s().queue === 1 ? 'סופגנייה 1' : `${this.s().queue} סופגניות`));
 
@@ -143,7 +139,9 @@ export class SufganometerPage implements OnInit, OnDestroy {
         ? 'נשרפה'
         : slot.index === st.current?.index
           ? `נשרפת עכשיו · ${Math.round(slot.progress * 100)}%`
-          : `מחכה · ${fmt(slot.need)} צעדים`,
+          : slot.done > 0
+            ? `מושהית · ${Math.round(slot.progress * 100)}%`
+            : `מחכה · ${fmt(slot.need)} צעדים`,
       bar: `linear-gradient(90deg, #C8102E, ${ringColor(slot.progress)})`,
     }));
   });
@@ -153,7 +151,7 @@ export class SufganometerPage implements OnInit, OnDestroy {
   );
   readonly sheetSub = computed(() => {
     if (this.sheet() === 'change') return 'הצעדים שכבר נספרו לה יישארו, ויקוזזו לפי הגודל החדש';
-    if (this.sheet() === 'queue') return 'בחרו איזו סופגנייה להציג בדשבורד. השריפה עצמה הולכת לפי הסדר.';
+    if (this.sheet() === 'queue') return 'בחרו איזו סופגנייה לשרוף עכשיו. מה שכבר נספר לכל אחת נשמר לה.';
     const bank = this.s().bank;
     return bank > 0 ? `יש ${fmt(bank)} צעדים בבנק שיקוזזו ממנה` : 'בחרו סוג, ונתחיל לשרוף';
   });

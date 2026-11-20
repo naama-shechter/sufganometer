@@ -1,8 +1,9 @@
 // חישובי "חוב הסופגניות" – לוגיקה טהורה, בלי תלות בחיישן או ב-Angular.
 //
-// המודל: יש סך צעדים שנספרו מאז תחילת המעקב, ורשימת סופגניות לפי סדר האכילה.
-// הצעדים "משלמים" על הסופגניות לפי הסדר. מה שנשאר אחרי כולן הוא הבנק,
-// וסופגנייה חדשה קודם כל מקוזזת ממנו.
+// המודל: לכל סופגנייה נשמר כמה צעדים כבר נספרו לה (credited).
+// צעדים חדשים הולכים לסופגנייה הפעילה – זו שנבחרה בתור ומוצגת בדשבורד, ואם לא נבחרה אחת,
+// הראשונה שעוד לא נשרפה. כשהיא נשרפת, העודף ממשיך לבאה בתור, ומה שנשאר אחרי כולן נכנס לבנק.
+// סופגנייה חדשה קודם כל מקוזזת מהבנק.
 
 export interface DonutType {
   id: string;
@@ -22,6 +23,8 @@ export const DONUT_TYPES: DonutType[] = [
 export interface EatenDonut {
   typeId: string;
   at: number; // epoch ms
+  /** צעדים שכבר נספרו לסופגנייה הזו */
+  credited: number;
 }
 
 export interface DonutSlot {
@@ -65,37 +68,55 @@ export function stepsFor(type: DonutType, kcalPerStep: number): number {
   return Math.round(type.kcal / kcalPerStep);
 }
 
+/** הסופגנייה שמקבלת צעדים: זו שנבחרה (אם עוד לא נשרפה), אחרת הראשונה שלא נשרפה. -1 אם אין */
+export function activeIndex(eaten: EatenDonut[], focus: number | null, kcalPerStep: number): number {
+  const open = (d: EatenDonut) => d.credited < stepsFor(typeById(d.typeId), kcalPerStep);
+  if (focus !== null && focus < eaten.length && open(eaten[focus])) return focus;
+  return eaten.findIndex(open);
+}
+
+/** מחלק צעדים חדשים: לסופגנייה הפעילה, עודף לבאות בתור, ומה שנשאר – rest (לבנק) */
+export function distribute(
+  eaten: EatenDonut[],
+  focus: number | null,
+  amount: number,
+  kcalPerStep: number,
+): { eaten: EatenDonut[]; rest: number } {
+  const list = eaten.map((d) => ({ ...d }));
+  let rest = amount;
+  while (rest > 0) {
+    const a = activeIndex(list, focus, kcalPerStep);
+    if (a < 0) break;
+    const take = Math.min(rest, stepsFor(typeById(list[a].typeId), kcalPerStep) - list[a].credited);
+    list[a].credited += take;
+    rest -= take;
+  }
+  return { eaten: list, rest };
+}
+
 export function computeStatus(
   eaten: EatenDonut[],
-  steps: number,
+  bank: number,
   kcalPerStep: number,
   focusIndex: number | null = null,
 ): BurnStatus {
-  const slots: DonutSlot[] = [];
-  let cum = 0;
-  let current: DonutSlot | null = null;
-
-  eaten.forEach((d, index) => {
+  const slots: DonutSlot[] = eaten.map((d, index) => {
     const type = typeById(d.typeId);
     const need = stepsFor(type, kcalPerStep);
-    const done = Math.min(need, Math.max(0, steps - cum));
-    const slot: DonutSlot = { index, type, need, done, left: need - done, burned: done >= need, progress: done / need };
-    slots.push(slot);
-    if (!current && !slot.burned) current = slot;
-    cum += need;
+    const done = Math.min(need, Math.max(0, d.credited ?? 0));
+    return { index, type, need, done, left: need - done, burned: done >= need, progress: done / need };
   });
 
-  const cur = current as DonutSlot | null;
-  const focused = focusIndex !== null ? slots[focusIndex] : undefined;
-  const viewed = cur ? (focused && !focused.burned ? focused : cur) : null;
+  const ai = activeIndex(eaten, focusIndex, kcalPerStep);
+  const cur = ai >= 0 ? slots[ai] : null;
+  const viewed = cur;
   const noDonutsYet = eaten.length === 0;
   const hasDebt = !!cur;
   const done = !hasDebt && !noDonutsYet;
-  const bank = hasDebt ? 0 : steps - cum;
-  const queue = cur ? eaten.length - cur.index : 0;
-  const stepsLeftTotal = Math.max(0, cum - steps);
-  const stepsUntilViewedStarts =
-    viewed && cur ? slots.slice(cur.index, viewed.index).reduce((sum, s) => sum + s.left, 0) : 0;
+  const queue = slots.filter((s) => !s.burned).length;
+  const cum = slots.reduce((sum, s) => sum + s.need, 0);
+  const stepsLeftTotal = slots.reduce((sum, s) => sum + s.left, 0);
+  const stepsUntilViewedStarts = 0;
 
   const p = cur?.progress ?? 0;
   let message: string;
