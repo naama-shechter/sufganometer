@@ -1,4 +1,4 @@
-import { Component, OnDestroy, OnInit, computed, effect, inject, signal, untracked } from '@angular/core';
+import { Component, OnDestroy, OnInit, computed, inject, signal } from '@angular/core';
 import { IonContent } from '@ionic/angular/standalone';
 import { App } from '@capacitor/app';
 import type { PluginListenerHandle } from '@capacitor/core';
@@ -23,7 +23,6 @@ const SENSOR_LABELS: Record<SensorState, string> = {
   error: 'שגיאה בחיישן',
 };
 
-const PARTY_MS = 4200;
 const RING_R = 90; // רדיוס קו האמצע של הטבעת, בתוך קופסה של 210px
 
 const CONFETTI_COLORS = ['#C8102E', '#F2C14E', '#3B2311', '#1F7A4D', '#E8546B', '#F0B56C', '#2F6FDE'];
@@ -48,12 +47,9 @@ export class SufganometerPage implements OnInit, OnDestroy {
   readonly notice = signal<Notice | null>(null);
 
   // ---------- חגיגה ----------
-  readonly party = signal(false);
-  /** משתנה בכל פתיחה של החגיגה כדי להריץ מחדש את האנימציה של המחבת */
+  /** משתנה בכל כניסה מחדש למסך כדי להריץ שוב את החגיגה. הדעיכה אחרי כ-4 שניות היא ב-CSS */
   readonly sceneKey = signal(0);
-  private partyTimer?: ReturnType<typeof setTimeout>;
   private resumeListener?: PluginListenerHandle;
-  private wasDone = false;
 
   readonly confetti = Array.from({ length: 30 }, (_, c) => {
     const w = 7 + (c % 3) * 2;
@@ -156,17 +152,6 @@ export class SufganometerPage implements OnInit, OnDestroy {
     return bank > 0 ? `יש ${fmt(bank)} צעדים בבנק שיקוזזו ממנה` : 'בחרו סוג, ונתחיל לשרוף';
   });
 
-  constructor() {
-    // חגיגה בכל מעבר ל"מותר לטגן"
-    effect(() => {
-      const done = this.s().done;
-      untracked(() => {
-        if (done && !this.wasDone) this.startParty();
-        this.wasDone = done;
-      });
-    });
-  }
-
   ngOnInit(): void {
     void this.pedo.init();
     void App.addListener('resume', () => this.replayIfDone()).then((h) => (this.resumeListener = h));
@@ -178,7 +163,6 @@ export class SufganometerPage implements OnInit, OnDestroy {
   }
 
   ngOnDestroy(): void {
-    clearTimeout(this.partyTimer);
     void this.resumeListener?.remove();
   }
 
@@ -273,13 +257,6 @@ export class SufganometerPage implements OnInit, OnDestroy {
   }
 
   private replayIfDone(): void {
-    if (this.s().done) this.startParty();
-  }
-
-  private startParty(): void {
-    clearTimeout(this.partyTimer);
-    this.sceneKey.update((k) => k + 1);
-    this.party.set(true);
-    this.partyTimer = setTimeout(() => this.party.set(false), PARTY_MS);
+    if (this.s().done) this.sceneKey.update((k) => k + 1);
   }
 }

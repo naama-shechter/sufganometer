@@ -166,7 +166,8 @@
 </ion-content>
 
 <!-- ===== חגיגת "מותר לטגן" ===== -->
-@if (party() && s().done && !sheet() && !pending() && !notice()) {
+@if (s().done && !sheet() && !pending() && !notice()) {
+  @for (k of [sceneKey()]; track k) {
   <div class="party" aria-hidden="true">
     @for (c of confetti; track $index) {
       <span class="confetti" [style]="c"></span>
@@ -181,6 +182,7 @@
       </span>
     }
   </div>
+  }
 }
 
 <!-- ===== חלון תחתון: בחירת סוג / החלפה / התור ===== -->
