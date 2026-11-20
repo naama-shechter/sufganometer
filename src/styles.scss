@@ -8,3 +8,10 @@
 @use '@fontsource/rubik/hebrew-900.css';
 @use '@fontsource/rubik/latin-400.css';
 @use '@fontsource/rubik/latin-700.css';
+
+// התקדמות הטבעת – רשום כדי שאפשר יהיה להנפיש אותו בצורה חלקה
+@property --sgp {
+  syntax: '<number>';
+  inherits: true;
+  initial-value: 0;
+}

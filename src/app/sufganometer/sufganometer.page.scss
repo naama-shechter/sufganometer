@@ -85,7 +85,13 @@ button {
   height: 210px;
 
   .layer { position: absolute; inset: 0; }
-  .donut { transition: transform 0.4s ease; }
+}
+
+// --sgp (0..1) רשום ב-styles.scss כ-@property, ולכן אפשר להנפיש אותו
+.ring-anim {
+  position: absolute;
+  inset: 0;
+  transition: --sgp 0.6s ease-out;
 }
 
 .ring-fill {
@@ -95,16 +101,52 @@ button {
   width: 195px;
   height: 195px;
   border-radius: 50%;
-  $mask: radial-gradient(farthest-side, transparent calc(100% - 15px), #000 calc(100% - 14px));
-  -webkit-mask: $mask;
-  mask: $mask;
+  // אדום בנקודת ההתחלה, כתום-חום בסוף העיגול המלא
+  background: conic-gradient(from -8deg, $jam 0deg, $jam 8deg, $brown 368deg);
+  $ring: radial-gradient(farthest-side, transparent calc(100% - 15px), #000 calc(100% - 14px));
+  $arc: conic-gradient(from -8deg, transparent 0deg 8deg, #000 8deg calc(8deg + var(--sgp) * 360deg), transparent 0);
+  -webkit-mask: $ring, $arc;
+  -webkit-mask-composite: source-in;
+  mask: $ring, $arc;
+  mask-composite: intersect;
+}
+
+.caps {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  transition: opacity 0.3s;
+  &.on { opacity: 1; }
+}
+
+.cap-rot {
+  position: absolute;
+  inset: 0;
+  transform: rotate(calc(var(--sgp) * 360deg));
 }
 
 .cap {
   position: absolute;
+  left: 97.5px;
+  top: 7.5px;
   width: 15px;
   height: 15px;
   border-radius: 50%;
+  &.start { background: $jam; }
+  &.end { background: color-mix(in srgb, $brown calc(var(--sgp) * 100%), $jam); }
+}
+
+.shake {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: shake 0.18s linear infinite;
+}
+
+.steam {
+  transform-box: fill-box;
+  transform-origin: center;
+  opacity: 0;
+  animation: steam 1.4s ease-out infinite;
 }
 
 .headline {
@@ -474,6 +516,16 @@ button {
   50% { transform: rotate(4deg); }
 }
 @keyframes fade-out { to { opacity: 0; } }
+@keyframes steam {
+  0% { transform: translateY(0) scale(0.5); opacity: 0; }
+  20% { opacity: 0.95; }
+  100% { transform: translateY(-34px) scale(1.35); opacity: 0; }
+}
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-1.6px); }
+  75% { transform: translateX(1.6px); }
+}
 @keyframes splash {
   0% { transform: translate(0, 0) scale(0.5); opacity: 0; }
   15% { opacity: 1; }
@@ -492,5 +544,6 @@ button {
 
 @media (prefers-reduced-motion: reduce) {
   .party { display: none; }
-  .scene *, .headline, .headline * { animation: none !important; }
+  .scene *, .headline, .headline *, .shake, .steam { animation: none !important; }
+  .ring-anim { transition: none; }
 }

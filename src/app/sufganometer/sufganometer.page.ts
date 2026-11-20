@@ -3,7 +3,7 @@ import { IonContent } from '@ionic/angular/standalone';
 import { App } from '@capacitor/app';
 import type { PluginListenerHandle } from '@capacitor/core';
 import { PedometerService, SensorState, BankOutcome } from './pedometer.service';
-import { DONUT_TYPES, DonutType, fmt, ringColor, ringEnds, stepsFor } from './donut-calc';
+import { DONUT_TYPES, DonutType, fmt, ringColor, stepsFor } from './donut-calc';
 
 type SheetMode = 'add' | 'change' | 'queue' | null;
 
@@ -23,7 +23,14 @@ const SENSOR_LABELS: Record<SensorState, string> = {
   error: 'שגיאה בחיישן',
 };
 
-const RING_R = 90; // רדיוס קו האמצע של הטבעת, בתוך קופסה של 210px
+const MOODS = ['מאושרת', 'שמחה', 'מתונה', 'עצובה', 'עצבנית', 'רותחת מזעם'];
+
+function blend(from: string, to: string, t: number): string {
+  const rgb = (h: string) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16));
+  const a = rgb(from);
+  const b = rgb(to);
+  return `rgb(${a.map((v, i) => Math.round(v + (b[i] - v) * t)).join(', ')})`;
+}
 
 const CONFETTI_COLORS = ['#C8102E', '#F2C14E', '#3B2311', '#1F7A4D', '#E8546B', '#F0B56C', '#2F6FDE'];
 
@@ -89,25 +96,24 @@ export class SufganometerPage implements OnInit, OnDestroy {
   });
 
   readonly progress = computed(() => this.s().viewed?.progress ?? 0);
-  readonly ring = computed(() => {
-    const p = this.progress();
-    const deg = Math.max(0, Math.min(360, p * 360));
-    const { start, end } = ringEnds(p);
-    const rad = (deg * Math.PI) / 180;
+  /** 0 מאושרת · 1 שמחה · 2 מתונה · 3 עצובה · 4 עצבנית · 5 רותחת מזעם */
+  readonly mood = computed(() => (this.s().viewed ? Math.min(5, Math.floor(this.progress() * 6)) : 0));
+  /** הבצק מאדים בהדרגה, כאילו הסופגנייה מתחממת מעצבים */
+  readonly dough = computed(() => {
+    const h = this.s().viewed ? this.progress() : 0;
     return {
-      background: `conic-gradient(from 0deg, ${start} 0deg, ${end} ${deg.toFixed(1)}deg, transparent ${deg.toFixed(1)}deg)`,
-      capStartColor: start,
-      capX: 105 + RING_R * Math.sin(rad) - 7.5,
-      capY: 105 - RING_R * Math.cos(rad) - 7.5,
-      capColor: end,
-      showCaps: p > 0.005,
+      dark: blend('#B8692A', '#9E2A18', h),
+      mid: blend('#E39A4B', '#D84A2E', h),
+      light: blend('#F0B56C', '#EE7E5A', h),
     };
   });
-  readonly donutTransform = computed(() => `translate(130 136) scale(${Math.max(0.18, 1 - this.progress() * 0.82)})`);
-  readonly mouthPath = computed(() => (this.progress() < 0.5 ? 'M-14 14 Q0 26 14 14' : 'M-14 20 Q0 10 14 20'));
+  /** עשן מהאוזניים */
+  readonly steam = [-1, 1].flatMap((side) =>
+    [0, 1, 2].map((j) => ({ x: side * (80 + j * 3), y: -2 - j * 6, r: 7 + j * 2, delay: `${(j * 0.45).toFixed(2)}s` })),
+  );
   readonly ringLabel = computed(() => {
     const v = this.s().viewed;
-    return v ? `נשרפו ${Math.round(v.progress * 100)} אחוז מה${v.type.name}` : 'אין סופגנייה פתוחה';
+    return v ? `נשרפו ${Math.round(v.progress * 100)} אחוז מה${v.type.name}. מצב רוח: ${MOODS[this.mood()]}` : 'אין סופגנייה פתוחה';
   });
 
   readonly viewKicker = computed(() => {
