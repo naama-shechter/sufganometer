@@ -58,6 +58,12 @@ export class SufganometerPage implements OnInit, OnDestroy {
   readonly sceneKey = signal(0);
   private resumeListener?: PluginListenerHandle;
 
+  // ---------- ספירת פתיחה: המספרים והטבעת עולים מאפס בכל כניסה למסך ----------
+  readonly intro = signal(0);
+  readonly introEase = computed(() => 1 - Math.pow(1 - this.intro(), 3));
+  readonly introDone = computed(() => this.intro() >= 1);
+  private introRaf?: number;
+
   readonly confetti = Array.from({ length: 30 }, (_, c) => {
     const w = 7 + (c % 3) * 2;
     const h = 12 - (c % 3) * 2;
@@ -125,9 +131,14 @@ export class SufganometerPage implements OnInit, OnDestroy {
   });
   readonly viewLine = computed(() => {
     const v = this.s().viewed;
-    return v ? `נשארו ${fmt(v.left)} צעדים לסופגנייה הזו` : '';
+    return v ? `נשארו ${fmt(this.count(v.left))} צעדים לסופגנייה הזו` : '';
   });
-  readonly queueLabel = computed(() => (this.s().queue === 1 ? 'סופגנייה 1' : `${this.s().queue} סופגניות`));
+  readonly queueLabel = computed(() => {
+    const q = Math.round(this.s().queue * this.introEase());
+    return q === 1 ? 'סופגנייה 1' : `${q} סופגניות`;
+  });
+  /** הטבעת כפי שמוצגת – עולה מאפס יחד עם ספירת הפתיחה */
+  readonly ringShown = computed(() => this.progress() * this.introEase());
 
   /** התור מהחדשה לישנה */
   readonly queueItems = computed(() => {
@@ -158,16 +169,42 @@ export class SufganometerPage implements OnInit, OnDestroy {
 
   ngOnInit(): void {
     void this.pedo.init();
-    void App.addListener('resume', () => this.replayIfDone()).then((h) => (this.resumeListener = h));
+    this.playIntro();
+    void App.addListener('resume', () => {
+      this.playIntro();
+      this.replayIfDone();
+    }).then((h) => (this.resumeListener = h));
   }
 
   /** Ionic: בכל כניסה מחדש למסך */
+  ionViewWillEnter(): void {
+    this.playIntro();
+  }
+
   ionViewDidEnter(): void {
     this.replayIfDone();
   }
 
   ngOnDestroy(): void {
+    if (this.introRaf) cancelAnimationFrame(this.introRaf);
     void this.resumeListener?.remove();
+  }
+
+  /** ערך מספרי כפי שמוצג בזמן ספירת הפתיחה */
+  count(n: number): number {
+    return n * this.introEase();
+  }
+
+  private playIntro(duration = 1200): void {
+    if (this.introRaf) cancelAnimationFrame(this.introRaf);
+    this.intro.set(0);
+    const start = performance.now();
+    const step = (now: number) => {
+      const t = Math.min(1, (now - start) / duration);
+      this.intro.set(t);
+      this.introRaf = t < 1 ? requestAnimationFrame(step) : undefined;
+    };
+    this.introRaf = requestAnimationFrame(step);
   }
 
   stepsFor(type: DonutType): string {

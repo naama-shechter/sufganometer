@@ -92,6 +92,8 @@ button {
   position: absolute;
   inset: 0;
   transition: --sgp 0.6s ease-out;
+  // בזמן ספירת הפתיחה הטבעת עוקבת אחרי המספרים פריים-פריים
+  &.instant { transition: none; }
 }
 
 .ring-fill {

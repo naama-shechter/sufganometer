@@ -30,9 +30,9 @@
             <circle cx="105" cy="105" r="90" fill="none" stroke="#F6E2BC" stroke-width="15" />
           </svg>
           <!-- גרדיאנט קבוע לאורך העיגול; --sgp מונפש בצורה חלקה -->
-          <div class="ring-anim" [style.--sgp]="progress()">
+          <div class="ring-anim" [class.instant]="!introDone()" [style.--sgp]="ringShown()">
             <div class="ring-fill"></div>
-            <div class="caps" [class.on]="progress() > 0.002">
+            <div class="caps" [class.on]="ringShown() > 0.002">
               <span class="cap start"></span>
               <div class="cap-rot"><span class="cap end"></span></div>
             </div>
@@ -116,7 +116,7 @@
 
         @if (s().hasDebt) {
           <div class="headline">
-            <span class="big">{{ fmt(s().stepsLeftTotal) }}</span>
+            <span class="big">{{ fmt(count(s().stepsLeftTotal)) }}</span>
             <span class="caption">צעדים עד שמותר סופגנייה חדשה</span>
           </div>
         } @else {
@@ -179,7 +179,7 @@
       } @else {
         <div class="now-text">
           <span class="kicker">בבנק הצעדים</span>
-          <span class="name">{{ fmt(s().bank) }} צעדים</span>
+          <span class="name">{{ fmt(count(s().bank)) }} צעדים</span>
           <span class="line">יקוזזו מהסופגנייה הבאה</span>
         </div>
       }
@@ -191,7 +191,7 @@
     </section>
 
     <section class="stats">
-      <div class="stat"><span class="label">צעדים שנספרו</span><span class="value">{{ fmt(pedo.steps()) }}</span></div>
+      <div class="stat"><span class="label">צעדים שנספרו</span><span class="value">{{ fmt(count(pedo.steps())) }}</span></div>
       <button type="button" class="stat stat-btn" aria-label="הצגת הסופגניות בתור" (click)="openSheet('queue')">
         <span class="label row">
           <span>בתור לשריפה</span>
@@ -199,7 +199,7 @@
         </span>
         <span class="value">{{ queueLabel() }}</span>
       </button>
-      <div class="stat"><span class="label">בבנק</span><span class="value">{{ fmt(s().bank) }}</span></div>
+      <div class="stat"><span class="label">בבנק</span><span class="value">{{ fmt(count(s().bank)) }}</span></div>
     </section>
 
     <div class="actions">
