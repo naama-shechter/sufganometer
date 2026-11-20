@@ -143,10 +143,10 @@ export function ringColor(t: number): string {
 
 /**
  * צבעי שני הקצוות של הטבעת בהתקדמות p.
- * ככל שמתקרבים לסגירה גם תחילת הטבעת מתחממת, כך שהחיבור בין הקצוות זורם בלי תפר.
+ * גרדיאנט קבוע לאורך העיגול: תמיד מתחיל באדום, והקצה המתקדם מקבל את הצבע של המיקום שלו.
  */
 export function ringEnds(p: number): { start: string; end: string } {
-  return { start: ringColor(Math.max(0, (p - 0.6) / 0.4)), end: ringColor(p) };
+  return { start: ringColor(0), end: ringColor(p) };
 }
 
 export function fmt(n: number): string {
