@@ -222,13 +222,16 @@
       @if (pedo.sensor() === 'web') {
         <button type="button" class="link" (click)="pedo.addSteps(1000)">+1,000 צעדים (דמו)</button>
       }
-      <button type="button" class="link" (click)="pedo.reset()">איפוס</button>
+      <button type="button" class="reset-btn" (click)="resetAsk.set(true)">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7" /><path d="M3 4v5h5" /></svg>
+        <span>איפוס הכל</span>
+      </button>
     </div>
   </div>
 </ion-content>
 
 <!-- ===== חגיגת "מותר לטגן" ===== -->
-@if (s().done && !sheet() && !pending() && !notice()) {
+@if (s().done && !sheet() && !pending() && !notice() && !resetAsk()) {
   @for (k of [sceneKey()]; track k) {
   <div class="party" aria-hidden="true">
     @for (c of confetti; track $index) {
@@ -319,6 +322,19 @@
       <button type="button" class="btn dark full" (click)="confirmChange()">מבטיח/ה, להחליף</button>
       <button type="button" class="btn full oops" (click)="oopsAnother()">אופס… בעצם זו עוד אחת</button>
       <button type="button" class="link" (click)="cancelConfirm()">ביטול</button>
+    </div>
+  </div>
+}
+
+<!-- ===== איפוס הכל ===== -->
+@if (resetAsk()) {
+  <div class="backdrop center" dir="rtl">
+    <div class="dialog" role="alertdialog" aria-modal="true" aria-label="איפוס הכל">
+      <svg width="52" height="52" viewBox="0 0 24 24" fill="none" stroke="#C8102E" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7" /><path d="M3 4v5h5" /></svg>
+      <h2>לאפס הכל?</h2>
+      <p>הצעדים, הסופגניות בתור והבנק יחזרו לאפס, וההדמיה תיעצר. אי אפשר לבטל את זה.</p>
+      <button type="button" class="btn primary full" (click)="resetAll()">כן, לאפס הכל</button>
+      <button type="button" class="link" (click)="resetAsk.set(false)">ביטול</button>
     </div>
   </div>
 }

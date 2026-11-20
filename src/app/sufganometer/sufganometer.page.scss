@@ -321,6 +321,22 @@ button {
   padding: 4px 10px;
 }
 
+.reset-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: #fff;
+  border: 2px solid $ink;
+  border-radius: 999px;
+  color: $ink;
+  font-size: 13px;
+  font-weight: 700;
+  padding: 0 14px;
+  min-height: 36px;
+}
+
+.links { align-items: center; }
+
 .tag {
   font-size: 11px;
   font-weight: 700;

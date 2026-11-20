@@ -52,6 +52,7 @@ export class SufganometerPage implements OnInit, OnDestroy {
   readonly sheet = signal<SheetMode>(null);
   readonly pending = signal<DonutType | null>(null);
   readonly notice = signal<Notice | null>(null);
+  readonly resetAsk = signal(false);
 
   // ---------- חגיגה ----------
   /** משתנה בכל כניסה מחדש למסך כדי להריץ שוב את החגיגה. הדעיכה אחרי כ-4 שניות היא ב-CSS */
@@ -277,6 +278,15 @@ export class SufganometerPage implements OnInit, OnDestroy {
 
   closeNotice(): void {
     this.notice.set(null);
+  }
+
+  /** איפוס מלא: צעדים, סופגניות, בנק והדמיה – הכל לאפס */
+  resetAll(): void {
+    this.resetAsk.set(false);
+    this.sheet.set(null);
+    this.pending.set(null);
+    this.notice.set(null);
+    this.pedo.reset();
   }
 
   private addDonut(type: DonutType): void {
