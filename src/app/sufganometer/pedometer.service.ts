@@ -2,7 +2,7 @@ import { Injectable, NgZone, computed, inject, signal } from '@angular/core';
 import { Capacitor, PluginListenerHandle } from '@capacitor/core';
 import { App } from '@capacitor/app';
 import { CapacitorPedometer } from '@capgo/capacitor-pedometer';
-import { DonutType, EatenDonut, computeStatus } from './donut-calc';
+import { DonutType, EatenDonut, computeStatus, stepsFor } from './donut-calc';
 
 export type SensorState =
   | 'checking'
@@ -13,22 +13,28 @@ export type SensorState =
   | 'web'
   | 'error';
 
+/** מה קרה לבנק כשהוספנו סופגנייה – לחלון ההודעה */
+export type BankOutcome =
+  | { kind: 'none' }
+  | { kind: 'free'; need: number; bankLeft: number }
+  | { kind: 'partial'; used: number; left: number };
+
 interface SavedState {
   eaten: EatenDonut[];
   steps: number;
-  sessionStart: number;
+  trackingStart: number;
 }
 
-const STORAGE_KEY = 'sufganometer.v1';
+const STORAGE_KEY = 'sufganometer.v2';
 
 /**
  * מחבר את מד הצעדים המובנה של הטלפון (iOS: CMPedometer, Android: TYPE_STEP_COUNTER)
- * וסופר צעדים מאז שהתחיל "חוב הסופגניות" הנוכחי.
+ * וסופר צעדים מאז תחילת המעקב. הצעדים "משלמים" על הסופגניות לפי הסדר,
+ * ומה שנשאר נשמר בבנק לסופגנייה הבאה.
  *
- * iOS  – הצעדים נשמרים במערכת (עד 7 ימים אחורה), לכן בכל חזרה לאפליקציה
- *        שולפים את סך הצעדים מאז הסופגנייה הראשונה, כולל כשהאפליקציה הייתה סגורה.
- * Android – לתוסף אין שאילתה היסטורית, לכן נספרים רק צעדים בזמן שהאפליקציה פתוחה,
- *        והסכום נשמר מקומית בין הפעלות.
+ * iOS  – בכל חזרה לאפליקציה שולפים מהמערכת את כל הצעדים מאז תחילת המעקב
+ *        (עד 7 ימים אחורה), כולל כשהאפליקציה הייתה סגורה.
+ * Android – נספרים רק צעדים בזמן שהאפליקציה פתוחה, והסכום נשמר מקומית.
  */
 @Injectable({ providedIn: 'root' })
 export class PedometerService {
@@ -41,14 +47,16 @@ export class PedometerService {
   readonly sensor = signal<SensorState>('checking');
   readonly steps = signal(0);
   readonly eaten = signal<EatenDonut[]>([]);
+  /** איזו סופגנייה מהתור מוצגת בדשבורד (null = זו שנשרפת עכשיו) */
+  readonly focus = signal<number | null>(null);
   readonly simulating = signal(false);
 
-  readonly status = computed(() => computeStatus(this.eaten(), this.steps(), this.kcalPerStep));
+  readonly status = computed(() => computeStatus(this.eaten(), this.steps(), this.kcalPerStep, this.focus()));
 
-  private sessionStart = 0;
-  private baseSteps = 0; // צעדים שנספרו לפני הסשן החי הנוכחי של החיישן
-  private lastLive = 0; // הערך האחרון שהחיישן דיווח בסשן הנוכחי (מצטבר מתחילת הסשן)
-  private liveOffset = 0; // לאיפוס באמצע סשן חי (סופגנייה חדשה אחרי שהחוב נמחק)
+  private trackingStart = 0;
+  private baseSteps = 0;
+  private lastLive = 0;
+  private liveOffset = 0;
   private measurementListener?: PluginListenerHandle;
   private wantLive = false;
   private initialized = false;
@@ -58,6 +66,10 @@ export class PedometerService {
     if (this.initialized) return;
     this.initialized = true;
     this.load();
+    if (!this.trackingStart) {
+      this.trackingStart = Date.now();
+      this.save();
+    }
 
     if (!this.isNative) {
       this.sensor.set('web');
@@ -101,24 +113,38 @@ export class PedometerService {
     }
   }
 
-  eat(type: DonutType): void {
-    const donut: EatenDonut = { typeId: type.id, kcal: type.kcal, at: Date.now() };
-    if (this.status().done) {
-      // אין חוב פתוח – מתחילים סשן חדש מאפס
-      this.sessionStart = donut.at;
-      this.resetCounter();
-      this.eaten.set([donut]);
-    } else {
-      this.eaten.update((list) => [...list, donut]);
-    }
+  /** "אכלתי עוד" – מוסיף לסוף התור, ומקזז קודם מהבנק */
+  eat(type: DonutType): BankOutcome {
+    const bank = this.status().bank;
+    this.eaten.update((list) => [...list, { typeId: type.id, at: Date.now() }]);
     this.save();
+
+    if (bank <= 0) return { kind: 'none' };
+    const need = stepsFor(type, this.kcalPerStep);
+    return bank >= need
+      ? { kind: 'free', need, bankLeft: bank - need }
+      : { kind: 'partial', used: bank, left: need - bank };
+  }
+
+  /** החלפת סוג של סופגנייה בתור. הצעדים שכבר נספרו לה נשארים ומקוזזים לפי הגודל החדש */
+  changeType(index: number, type: DonutType): void {
+    this.eaten.update((list) => list.map((d, i) => (i === index ? { ...d, typeId: type.id } : d)));
+    this.save();
+  }
+
+  showInDashboard(index: number | null): void {
+    const cur = this.status().current;
+    this.focus.set(cur && index === cur.index ? null : index);
   }
 
   reset(): void {
     this.stopSimulation();
-    this.sessionStart = 0;
-    this.resetCounter();
+    this.trackingStart = Date.now();
+    this.baseSteps = 0;
+    this.liveOffset = this.lastLive;
+    this.steps.set(0);
     this.eaten.set([]);
+    this.focus.set(null);
     this.save();
   }
 
@@ -130,8 +156,15 @@ export class PedometerService {
     }
     this.simulating.set(true);
     this.simTimer = setInterval(() => {
-      this.steps.update((s) => s + 18 + Math.floor(Math.random() * 14));
+      this.steps.update((s) => s + 30 + Math.floor(Math.random() * 16));
     }, 200);
+  }
+
+  /** קיצור דרך לבדיקות ולדמו */
+  addSteps(n: number): void {
+    this.steps.update((s) => s + n);
+    this.baseSteps += n;
+    this.save();
   }
 
   // ---------- חיישן ----------
@@ -164,12 +197,13 @@ export class PedometerService {
     this.measurementListener = undefined;
   }
 
-  /** באייפון: שולף מהמערכת את כל הצעדים מאז תחילת החוב (גם כשהאפליקציה הייתה סגורה) */
+  /** באייפון: שולף מהמערכת את כל הצעדים מאז תחילת המעקב (גם כשהאפליקציה הייתה סגורה) */
   private async syncBaseFromSystem(): Promise<void> {
-    if (this.isIos && this.sessionStart > 0) {
+    if (this.isIos && this.trackingStart > 0) {
       try {
-        const m = await CapacitorPedometer.getMeasurement({ start: this.sessionStart, end: Date.now() });
-        this.steps.set(m.numberOfSteps ?? 0);
+        const m = await CapacitorPedometer.getMeasurement({ start: this.trackingStart, end: Date.now() });
+        // לא יורדים מתחת למה שכבר נספר (למשל צעדי דמו או מגבלת 7 הימים של iOS)
+        this.steps.set(Math.max(this.steps(), m.numberOfSteps ?? 0));
       } catch (err) {
         console.warn('[Sufganometer] history query failed, using saved steps', err);
       }
@@ -187,17 +221,10 @@ export class PedometerService {
       await this.startLive();
       return;
     }
-    // אולי המשתמשת אישרה הרשאה בהגדרות ואז חזרה
     if (this.sensor() === 'denied' || this.sensor() === 'needs-permission') {
       const perm = await CapacitorPedometer.checkPermissions();
       if (perm.activityRecognition === 'granted') await this.startLive();
     }
-  }
-
-  private resetCounter(): void {
-    this.baseSteps = 0;
-    this.liveOffset = this.lastLive;
-    this.steps.set(0);
   }
 
   private stopSimulation(): void {
@@ -215,18 +242,14 @@ export class PedometerService {
       const saved = JSON.parse(raw) as SavedState;
       this.eaten.set(saved.eaten ?? []);
       this.steps.set(saved.steps ?? 0);
-      this.sessionStart = saved.sessionStart ?? 0;
+      this.trackingStart = saved.trackingStart ?? 0;
     } catch {
       /* נתונים פגומים – מתחילים מחדש */
     }
   }
 
   private save(): void {
-    const state: SavedState = {
-      eaten: this.eaten(),
-      steps: this.steps(),
-      sessionStart: this.sessionStart,
-    };
+    const state: SavedState = { eaten: this.eaten(), steps: this.steps(), trackingStart: this.trackingStart };
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
     } catch {

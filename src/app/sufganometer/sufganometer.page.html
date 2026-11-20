@@ -24,71 +24,120 @@
     }
 
     <section class="card">
-      <svg width="230" height="230" viewBox="0 0 260 260" role="img"
-           [attr.aria-label]="ringLabel()">
-        <circle cx="130" cy="130" r="112" fill="none" stroke="#F6E2BC" stroke-width="18" />
-        <circle cx="130" cy="130" r="112" fill="none" stroke-width="18" stroke-linecap="round"
-                [attr.stroke]="s().done && s().hasDebt ? '#1F7A4D' : '#C8102E'"
-                [attr.stroke-dasharray]="ringCircumference"
-                [attr.stroke-dashoffset]="s().hasDebt ? ringOffset() : ringCircumference"
-                transform="rotate(-90 130 130)" />
-        <g [attr.transform]="donutTransform()">
-          <ellipse cx="0" cy="10" rx="78" ry="66" fill="#B8692A" />
-          <ellipse cx="0" cy="0" rx="78" ry="64" fill="#E39A4B" />
-          <ellipse cx="0" cy="-8" rx="62" ry="44" fill="#F0B56C" />
-          <path d="M-50 -18 C-40 -40 -10 -48 6 -44 C30 -40 50 -30 54 -12 C40 -22 20 -14 0 -18 C-20 -22 -36 -10 -50 -18 Z" fill="#FFF8EC" />
-          <circle cx="-30" cy="6" r="3" fill="#FFF8EC" />
-          <circle cx="34" cy="10" r="2.5" fill="#FFF8EC" />
-          <circle cx="-8" cy="22" r="2.5" fill="#FFF8EC" />
-          <path d="M-14 -40 C-18 -56 14 -60 16 -44 C26 -40 22 -26 8 -28 C2 -20 -16 -24 -14 -32 C-24 -32 -22 -42 -14 -40 Z" fill="#C8102E" />
-          <circle cx="-2" cy="-46" r="4" fill="#E8546B" />
-          <circle cx="-22" cy="-4" r="4.5" fill="#3B2311" />
-          <circle cx="22" cy="-4" r="4.5" fill="#3B2311" />
-          <path [attr.d]="mouthPath()" fill="none" stroke="#3B2311" stroke-width="4" stroke-linecap="round" />
-        </g>
-      </svg>
+      @if (!s().done) {
+        <div class="ring" role="img" [attr.aria-label]="ringLabel()">
+          <svg class="layer" width="210" height="210" viewBox="0 0 210 210" aria-hidden="true">
+            <circle cx="105" cy="105" r="90" fill="none" stroke="#F6E2BC" stroke-width="15" />
+          </svg>
+          <div class="ring-fill" [style.background]="ring().background"></div>
+          @if (ring().showCaps) {
+            <span class="cap" style="left: 97.5px; top: 7.5px; background: #C8102E"></span>
+            <span class="cap" [style.left.px]="ring().capX" [style.top.px]="ring().capY" [style.background]="ring().capColor"></span>
+          }
+          <svg class="layer" width="210" height="210" viewBox="0 0 260 260" aria-hidden="true">
+            <g class="donut" [attr.transform]="donutTransform()">
+              <ellipse cx="0" cy="10" rx="78" ry="66" fill="#B8692A" />
+              <ellipse cx="0" cy="0" rx="78" ry="64" fill="#E39A4B" />
+              <ellipse cx="0" cy="-8" rx="62" ry="44" fill="#F0B56C" />
+              <path d="M-50 -18 C-40 -40 -10 -48 6 -44 C30 -40 50 -30 54 -12 C40 -22 20 -14 0 -18 C-20 -22 -36 -10 -50 -18 Z" fill="#FFF8EC" />
+              <circle cx="-30" cy="6" r="3" fill="#FFF8EC" />
+              <circle cx="34" cy="10" r="2.5" fill="#FFF8EC" />
+              <circle cx="-8" cy="22" r="2.5" fill="#FFF8EC" />
+              <path d="M-14 -40 C-18 -56 14 -60 16 -44 C26 -40 22 -26 8 -28 C2 -20 -16 -24 -14 -32 C-24 -32 -22 -42 -14 -40 Z"
+                    [attr.fill]="s().viewed?.type?.topping ?? lastType().topping" />
+              <circle cx="-22" cy="-4" r="4.5" fill="#3B2311" />
+              <circle cx="22" cy="-4" r="4.5" fill="#3B2311" />
+              <path [attr.d]="mouthPath()" fill="none" stroke="#3B2311" stroke-width="4" stroke-linecap="round" />
+            </g>
+          </svg>
+        </div>
 
-      @if (!s().hasDebt) {
-        <div class="headline">
-          <span class="big ok">אפס חובות</span>
-          <span class="caption">לחצי "אכלתי" כשהסופגנייה נכנסת לתמונה</span>
-        </div>
-      } @else if (s().done) {
-        <div class="headline">
-          <span class="big ok">מותר! לך לטגן</span>
-          <span class="caption">החוב נמחק. הסופגנייה הבאה עלייך</span>
-        </div>
+        @if (s().hasDebt) {
+          <div class="headline">
+            <span class="big">{{ fmt(s().stepsLeftTotal) }}</span>
+            <span class="caption">צעדים עד שמותר סופגנייה חדשה</span>
+          </div>
+        } @else {
+          <div class="headline">
+            <span class="big gold small">אפס חובות</span>
+            <span class="caption">הצעדים נאספים לבנק בינתיים</span>
+          </div>
+        }
       } @else {
-        <div class="headline">
-          <span class="big">{{ fmt(s().stepsLeftTotal) }}</span>
-          <span class="caption">צעדים עד שמותר סופגנייה חדשה</span>
+        @for (k of [sceneKey()]; track k) {
+          <div class="scene" aria-hidden="true">
+            @for (st of splash; track $index) {
+              <span class="drop" [style]="st"></span>
+            }
+            <div class="toss">
+              <svg width="90" height="90" viewBox="-80 -80 160 160">
+                <ellipse cx="0" cy="10" rx="70" ry="58" fill="#B8692A" />
+                <ellipse cx="0" cy="0" rx="70" ry="56" fill="#E39A4B" />
+                <ellipse cx="0" cy="-8" rx="54" ry="38" fill="#F0B56C" />
+                <path d="M-44 -16 C-34 -36 -8 -42 6 -38 C26 -34 44 -26 48 -10 C34 -20 18 -12 0 -16 C-18 -20 -32 -8 -44 -16 Z" fill="#FFF8EC" />
+                <path d="M-12 -34 C-16 -50 12 -54 14 -40 C24 -36 20 -22 6 -24 C0 -16 -14 -20 -12 -28 C-22 -28 -20 -38 -12 -34 Z" [attr.fill]="lastType().topping" />
+                <circle cx="-20" cy="0" r="4.5" fill="#3B2311" />
+                <circle cx="20" cy="0" r="4.5" fill="#3B2311" />
+                <path d="M-14 14 Q0 28 14 14" fill="none" stroke="#3B2311" stroke-width="4" stroke-linecap="round" />
+              </svg>
+            </div>
+            <div class="pan">
+              <svg width="260" height="80" viewBox="0 0 260 80">
+                <rect x="196" y="30" width="62" height="14" rx="7" fill="#3B2311" />
+                <ellipse cx="110" cy="44" rx="96" ry="32" fill="#2B1A0E" />
+                <ellipse cx="110" cy="36" rx="86" ry="22" fill="#4A2E18" />
+                <ellipse cx="110" cy="38" rx="74" ry="15" fill="#F2C14E" />
+                <ellipse cx="90" cy="35" rx="18" ry="4" fill="#FFE38A" />
+              </svg>
+            </div>
+          </div>
+          <div class="headline pop">
+            <span class="big gold wiggle">מותר לטגן!</span>
+            <span class="caption">החוב נמחק. מחבתות למעלה!</span>
+          </div>
+        }
+      }
+    </section>
+
+    <section class="now">
+      <svg width="42" height="42" viewBox="-80 -80 160 160" aria-hidden="true">
+        <ellipse cx="0" cy="10" rx="70" ry="58" fill="#B8692A" />
+        <ellipse cx="0" cy="0" rx="70" ry="56" fill="#E39A4B" />
+        <ellipse cx="0" cy="-8" rx="54" ry="38" fill="#F0B56C" />
+        <path d="M-14 -38 C-20 -56 16 -60 18 -42 C30 -38 24 -20 8 -22 C0 -12 -18 -18 -16 -28 C-28 -28 -26 -42 -14 -38 Z"
+              [attr.fill]="s().viewed?.type?.topping ?? '#F0B56C'" />
+      </svg>
+      @if (s().viewed; as v) {
+        <div class="now-text">
+          <span class="kicker">{{ viewKicker() }}</span>
+          <span class="name">{{ v.type.name }}</span>
+          <span class="line">{{ viewLine() }}</span>
+        </div>
+        <button type="button" class="pill-btn" (click)="openSheet('change')">החלפה</button>
+      } @else {
+        <div class="now-text">
+          <span class="kicker">בבנק הצעדים</span>
+          <span class="name">{{ fmt(s().bank) }} צעדים</span>
+          <span class="line">יקוזזו מהסופגנייה הבאה</span>
         </div>
       }
     </section>
 
     <section class="bubble">
       <strong>{{ s().message }}</strong>
-      @if (s().hasDebt) {
-        <span>{{ s().funFact }}</span>
-      }
+      <span>{{ s().funFact }}</span>
     </section>
 
     <section class="stats">
       <div class="stat"><span class="label">צעדים שנספרו</span><span class="value">{{ fmt(pedo.steps()) }}</span></div>
-      <div class="stat"><span class="label">לסופגנייה הנוכחית</span><span class="value">{{ fmt(s().stepsLeftCurrent) }}</span></div>
-      <div class="stat"><span class="label">בתור לשריפה</span><span class="value">{{ queueLabel() }}</span></div>
-    </section>
-
-    <section class="types">
-      <span class="types-title">אכלתי סופגנייה מסוג:</span>
-      <div class="pills">
-        @for (t of types; track t.id) {
-          <button type="button" class="pill" [class.selected]="picked() === t.id"
-                  [attr.aria-pressed]="picked() === t.id" (click)="picked.set(t.id)">
-            {{ t.label }} · ~{{ t.kcal }}
-          </button>
-        }
-      </div>
+      <button type="button" class="stat stat-btn" aria-label="הצגת הסופגניות בתור" (click)="openSheet('queue')">
+        <span class="label row">
+          <span>בתור לשריפה</span>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 6l-6 6 6 6" /></svg>
+        </span>
+        <span class="value">{{ queueLabel() }}</span>
+      </button>
+      <div class="stat"><span class="label">בבנק</span><span class="value">{{ fmt(s().bank) }}</span></div>
     </section>
 
     <div class="actions">
@@ -97,9 +146,9 @@
           {{ pedo.simulating() ? 'עצור הדמיה' : 'הדמיית הליכה' }}
         </button>
       }
-      <button type="button" class="btn primary" (click)="eat()">
+      <button type="button" class="btn primary" (click)="openSheet('add')">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14" /></svg>
-        <span>אכלתי</span>
+        <span>אכלתי עוד</span>
       </button>
     </div>
 
@@ -107,6 +156,116 @@
       <p class="note">באנדרואיד נספרים צעדים רק כשהאפליקציה פתוחה. ספירה ברקע תגיע עם Health Connect.</p>
     }
 
-    <button type="button" class="reset" (click)="pedo.reset()">איפוס</button>
+    <div class="links">
+      @if (pedo.sensor() === 'web') {
+        <button type="button" class="link" (click)="pedo.addSteps(1000)">+1,000 צעדים (דמו)</button>
+      }
+      <button type="button" class="link" (click)="pedo.reset()">איפוס</button>
+    </div>
   </div>
 </ion-content>
+
+<!-- ===== חגיגת "מותר לטגן" ===== -->
+@if (party() && s().done && !sheet() && !pending() && !notice()) {
+  <div class="party" aria-hidden="true">
+    @for (c of confetti; track $index) {
+      <span class="confetti" [style]="c"></span>
+    }
+    @for (p of pans; track $index) {
+      <span class="fly-pan" [style]="p">
+        <svg width="56" height="30" viewBox="0 0 56 30">
+          <rect x="34" y="11" width="22" height="6" rx="3" fill="#3B2311" />
+          <ellipse cx="19" cy="15" rx="18" ry="12" fill="#2B1A0E" />
+          <ellipse cx="19" cy="13" rx="13" ry="7" fill="#F2C14E" />
+        </svg>
+      </span>
+    }
+  </div>
+}
+
+<!-- ===== חלון תחתון: בחירת סוג / החלפה / התור ===== -->
+@if (sheet()) {
+  <div class="backdrop bottom" dir="rtl">
+    <div class="sheet" role="dialog" aria-modal="true" [attr.aria-label]="sheetTitle()">
+      <div class="grabber"></div>
+      <div class="sheet-head">
+        <h2>{{ sheetTitle() }}</h2>
+        <span>{{ sheetSub() }}</span>
+      </div>
+
+      @if (sheet() === 'queue') {
+        <div class="queue">
+          @for (q of queueItems(); track q.slot.index) {
+            <button type="button" class="queue-row" [class.viewed]="q.isViewed" [class.burned]="q.slot.burned"
+                    [disabled]="q.slot.burned" (click)="showInDashboard(q.slot.index, q.slot.burned)">
+              <svg width="44" height="44" viewBox="-80 -80 160 160" aria-hidden="true">
+                <ellipse cx="0" cy="10" rx="70" ry="58" fill="#B8692A" />
+                <ellipse cx="0" cy="0" rx="70" ry="56" fill="#E39A4B" />
+                <ellipse cx="0" cy="-8" rx="54" ry="38" fill="#F0B56C" />
+                <path d="M-14 -38 C-20 -56 16 -60 18 -42 C30 -38 24 -20 8 -22 C0 -12 -18 -18 -16 -28 C-28 -28 -26 -42 -14 -38 Z" [attr.fill]="q.slot.type.topping" />
+              </svg>
+              <span class="queue-text">
+                <span class="queue-top">
+                  <span class="queue-name">{{ q.slot.type.name }}</span>
+                  <span class="queue-status">{{ q.status }}</span>
+                </span>
+                <span class="bar"><span [style.width.%]="q.slot.progress * 100" [style.background]="q.bar"></span></span>
+              </span>
+              @if (q.isViewed) {
+                <span class="tag">בתצוגה</span>
+              }
+            </button>
+          } @empty {
+            <p class="empty">עוד אין סופגניות. זה הזמן הכי טוב להתחיל.</p>
+          }
+        </div>
+      } @else {
+        <div class="types">
+          @for (t of types; track t.id) {
+            <button type="button" class="type-card" [class.current]="sheet() === 'change' && s().viewed?.type?.id === t.id" (click)="pickType(t)">
+              <svg width="54" height="54" viewBox="-80 -80 160 160" aria-hidden="true">
+                <ellipse cx="0" cy="10" rx="70" ry="58" fill="#B8692A" />
+                <ellipse cx="0" cy="0" rx="70" ry="56" fill="#E39A4B" />
+                <ellipse cx="0" cy="-8" rx="54" ry="38" fill="#F0B56C" />
+                <path d="M-14 -38 C-20 -56 16 -60 18 -42 C30 -38 24 -20 8 -22 C0 -12 -18 -18 -16 -28 C-28 -28 -26 -42 -14 -38 Z" [attr.fill]="t.topping" />
+              </svg>
+              <span class="type-name">{{ t.name }}</span>
+              <span class="type-meta">~{{ t.kcal }} קל׳ · {{ stepsFor(t) }} צעדים</span>
+              @if (sheet() === 'change' && s().viewed?.type?.id === t.id) {
+                <span class="tag">הנוכחית</span>
+              }
+            </button>
+          }
+        </div>
+      }
+
+      <button type="button" class="btn ghost" (click)="closeSheet()">{{ sheet() === 'queue' ? 'סגירה' : 'ביטול' }}</button>
+    </div>
+  </div>
+}
+
+<!-- ===== אישור החלפת סוג ===== -->
+@if (pending(); as to) {
+  <div class="backdrop center" dir="rtl">
+    <div class="dialog" role="alertdialog" aria-modal="true" aria-label="החלפת סוג סופגנייה">
+      <svg width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="#C8102E" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3 2 20h20L12 3z" /><path d="M12 10v4" /><path d="M12 17h.01" /></svg>
+      <h2>רגע, רגע…</h2>
+      <p>מחליפים את <b>{{ s().viewed?.type?.name }}</b> ב<b>{{ to.name }}</b>.<br>מבטיחים שלא נדחפה פה עוד סופגנייה בשקט?</p>
+      <p class="muted">הצעדים שכבר עשית יקוזזו לפי הסופגנייה החדשה.</p>
+      <button type="button" class="btn dark full" (click)="confirmChange()">מבטיח/ה, להחליף</button>
+      <button type="button" class="btn full oops" (click)="oopsAnother()">אופס… בעצם זו עוד אחת</button>
+      <button type="button" class="link" (click)="cancelConfirm()">ביטול</button>
+    </div>
+  </div>
+}
+
+<!-- ===== הודעת קיזוז / החלפה ===== -->
+@if (notice(); as n) {
+  <div class="backdrop center" dir="rtl">
+    <div class="dialog" [class.gold]="n.gold" role="dialog" aria-modal="true" [attr.aria-label]="n.title">
+      <h2>{{ n.title }}</h2>
+      <p>{{ n.body }}</p>
+      <button type="button" class="btn primary full" (click)="closeNotice()">יאללה</button>
+    </div>
+  </div>
+}
