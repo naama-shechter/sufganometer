@@ -170,6 +170,11 @@ export function ringEnds(p: number): { start: string; end: string } {
   return { start: ringColor(0), end: ringColor(p) };
 }
 
+/** "ה" + שם: "סופגניית ריבה" ← "סופגניית הריבה", אחרת "ה" + השם */
+export function theName(name: string): string {
+  return name.startsWith('סופגניית ') ? 'סופגניית ה' + name.slice(9) : 'ה' + name;
+}
+
 export function fmt(n: number): string {
   return Math.max(0, Math.round(n)).toLocaleString('he-IL');
 }

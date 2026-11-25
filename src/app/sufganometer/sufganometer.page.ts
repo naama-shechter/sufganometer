@@ -3,7 +3,7 @@ import { IonContent } from '@ionic/angular/standalone';
 import { App } from '@capacitor/app';
 import type { PluginListenerHandle } from '@capacitor/core';
 import { PedometerService, SensorState, BankOutcome } from './pedometer.service';
-import { DONUT_TYPES, DonutType, fmt, ringColor, stepsFor } from './donut-calc';
+import { DONUT_TYPES, DonutType, fmt, ringColor, stepsFor, theName } from './donut-calc';
 
 type SheetMode = 'add' | 'change' | 'queue' | null;
 
@@ -45,6 +45,7 @@ export class SufganometerPage implements OnInit, OnDestroy {
   readonly pedo = inject(PedometerService);
   readonly types = DONUT_TYPES;
   readonly fmt = fmt;
+  readonly theName = theName;
 
   readonly s = this.pedo.status;
 
@@ -133,7 +134,7 @@ export class SufganometerPage implements OnInit, OnDestroy {
   );
   readonly ringLabel = computed(() => {
     const v = this.s().viewed;
-    return v ? `נשרפו ${Math.round(v.progress * 100)} אחוז מה${v.type.name}. מצב רוח: ${MOODS[this.mood()]}` : 'אין סופגנייה פתוחה';
+    return v ? `נשרפו ${Math.round(v.progress * 100)} אחוז מ${theName(v.type.name)}. מצב רוח: ${MOODS[this.mood()]}` : 'אין סופגנייה פתוחה';
   });
 
   readonly viewKicker = computed(() => {
@@ -262,17 +263,17 @@ export class SufganometerPage implements OnInit, OnDestroy {
     this.pedo.changeType(viewed.index, type);
 
     if (viewed.done === 0) {
-      this.notice.set({ title: 'הוחלף!', body: `ה${type.name} מחכה בתור, ותצטרך ${fmt(newNeed)} צעדים.`, gold: false });
+      this.notice.set({ title: 'הוחלף!', body: `${theName(type.name)} מחכה בתור, ותצטרך ${fmt(newNeed)} צעדים.`, gold: false });
     } else if (viewed.done >= newNeed) {
       this.notice.set({
         title: 'הוחלף, וכבר נשרפה!',
-        body: `עם ${fmt(viewed.done)} הצעדים שכבר עשית, ה${type.name} מכוסה לגמרי.`,
+        body: `עם ${fmt(viewed.done)} הצעדים שכבר עשית, ${theName(type.name)} מכוסה לגמרי.`,
         gold: true,
       });
     } else {
       this.notice.set({
         title: 'הוחלף!',
-        body: `הצעדים שכבר עשית (${fmt(viewed.done)}) קוזזו לפי ה${type.name}. נשארו ${fmt(newNeed - viewed.done)} צעדים.`,
+        body: `הצעדים שכבר עשית (${fmt(viewed.done)}) קוזזו לפי ${theName(type.name)}. נשארו ${fmt(newNeed - viewed.done)} צעדים.`,
         gold: false,
       });
     }
@@ -317,7 +318,7 @@ export class SufganometerPage implements OnInit, OnDestroy {
     this.notice.set({
       title: 'נרשם!',
       body: target
-        ? `${fmt(n)} צעדים ירדו מה${target.type.name}. הסופגנייה סומכת עליך.`
+        ? `${fmt(n)} צעדים ירדו מ${theName(target.type.name)}. הסופגנייה סומכת עליך.`
         : `${fmt(n)} צעדים נכנסו לבנק, ויקוזזו מהסופגנייה הבאה.`,
       gold: false,
     });
@@ -348,13 +349,13 @@ export class SufganometerPage implements OnInit, OnDestroy {
     if (outcome.kind === 'free') {
       this.notice.set({
         title: 'על חשבון הבית!',
-        body: `ה${type.name} כבר שולמה מראש: ${fmt(outcome.need)} צעדים ירדו מהבנק, ונשארו בו עוד ${fmt(outcome.bankLeft)}.`,
+        body: `${theName(type.name)} כבר שולמה מראש: ${fmt(outcome.need)} צעדים ירדו מהבנק, ונשארו בו עוד ${fmt(outcome.bankLeft)}.`,
         gold: true,
       });
     } else if (outcome.kind === 'partial') {
       this.notice.set({
         title: 'קיזזנו מהבנק',
-        body: `${fmt(outcome.used)} צעדים מהבנק כבר הלכו על ה${type.name}. נשארו עוד ${fmt(outcome.left)} צעדים.`,
+        body: `${fmt(outcome.used)} צעדים מהבנק כבר הלכו על ${theName(type.name)}. נשארו עוד ${fmt(outcome.left)} צעדים.`,
         gold: false,
       });
     }
