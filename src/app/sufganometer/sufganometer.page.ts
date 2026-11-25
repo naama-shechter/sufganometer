@@ -1,4 +1,4 @@
-import { Component, OnDestroy, OnInit, computed, inject, signal } from '@angular/core';
+import { Component, OnDestroy, OnInit, computed, effect, inject, signal, untracked } from '@angular/core';
 import { IonContent } from '@ionic/angular/standalone';
 import { App } from '@capacitor/app';
 import type { PluginListenerHandle } from '@capacitor/core';
@@ -54,6 +54,11 @@ export class SufganometerPage implements OnInit, OnDestroy {
   readonly pending = signal<DonutType | null>(null);
   readonly notice = signal<Notice | null>(null);
   readonly resetAsk = signal(false);
+
+  // ---------- חלונות חיבור ----------
+  readonly welcomeOpen = signal(false);
+  readonly bgHelpOpen = signal(false);
+  private welcomeShown = false;
 
   // ---------- הזנה ידנית ----------
   readonly manualOpen = signal(false);
@@ -181,6 +186,35 @@ export class SufganometerPage implements OnInit, OnDestroy {
     const bank = this.s().bank;
     return bank > 0 ? `יש ${fmt(bank)} צעדים בבנק שיקוזזו ממנה` : 'בחרו סוג, ונתחיל לשרוף';
   });
+
+  constructor() {
+    // בכניסה: אם מד הצעדים עוד לא מחובר – חלון ברוכים הבאים (פעם אחת בכל פתיחה)
+    effect(() => {
+      const needs = this.showConnect();
+      untracked(() => {
+        if (needs && !this.welcomeShown) {
+          this.welcomeShown = true;
+          this.welcomeOpen.set(true);
+        }
+        if (!needs) this.welcomeOpen.set(false);
+      });
+    });
+  }
+
+  async connectFromWelcome(): Promise<void> {
+    await this.pedo.connect();
+    if (this.pedo.sensor() === 'live') this.welcomeOpen.set(false);
+  }
+
+  setBgNotify(on: boolean): void {
+    if (this.pedo.bgNotify() !== on) this.pedo.toggleBgNotify();
+    this.bgHelpOpen.set(false);
+  }
+
+  async connectHealthFromHelp(): Promise<void> {
+    this.bgHelpOpen.set(false);
+    await this.pedo.connectHealth();
+  }
 
   ngOnInit(): void {
     void this.pedo.init();

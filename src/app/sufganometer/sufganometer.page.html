@@ -6,22 +6,18 @@
         <h1>סופגנומטר</h1>
         <span class="sub">כל צעד מוריד עוד ביס</span>
       </div>
-      <div class="chip" [class.live]="pedo.sensor() === 'live' || pedo.simulating()">
-        <span class="dot"></span>
-        <span>{{ sensorLabel() }}</span>
-      </div>
+      @if (showConnect()) {
+        <button type="button" class="chip chip-btn" (click)="welcomeOpen.set(true)">
+          <span class="dot"></span>
+          <span>{{ sensorLabel() }}</span>
+        </button>
+      } @else {
+        <div class="chip" [class.live]="pedo.sensor() === 'live' || pedo.simulating()">
+          <span class="dot"></span>
+          <span>{{ sensorLabel() }}</span>
+        </div>
+      }
     </header>
-
-    @if (showConnect()) {
-      <section class="connect">
-        @if (pedo.sensor() === 'denied') {
-          <p>כדי לספור צעדים צריך לאשר גישה ל"פעילות גופנית" / "תנועה" בהגדרות האפליקציה בטלפון, ואז לחזור לכאן.</p>
-        } @else {
-          <p>מחברים את מד הצעדים של הטלפון, וכל צעד יתחיל לכרסם בסופגנייה.</p>
-        }
-        <button type="button" class="btn primary" (click)="pedo.connect()">חבר למד הצעדים</button>
-      </section>
-    }
 
     <section class="card">
       @if (!s().done) {
@@ -221,20 +217,7 @@
     </div>
 
     @if (pedo.isAndroid && pedo.sensor() === 'live') {
-      <div class="bg-mode">
-        @if (pedo.hcReady() && !pedo.bgNotify()) {
-          <span>ספירה ברקע דרך Health Connect, בלי התראה</span>
-          <button type="button" class="link" (click)="pedo.toggleBgNotify()">לא סופר? לעבור להתראה</button>
-        } @else if (pedo.hcReady()) {
-          <span>ספירה ברקע עם התראה</span>
-          <button type="button" class="link" (click)="pedo.toggleBgNotify()">חזרה ל-Health Connect</button>
-        } @else if (pedo.hcAvailable()) {
-          <span>ספירה ברקע עם התראה</span>
-          <button type="button" class="link" (click)="pedo.connectHealth()">חיבור ל-Health Connect (בלי התראה)</button>
-        } @else {
-          <span>ספירה ברקע עם התראה</span>
-        }
-      </div>
+      <button type="button" class="help-link" (click)="bgHelpOpen.set(true)">הצעדים לא נספרים?</button>
     }
 
     <div class="links">
@@ -250,7 +233,7 @@
 </ion-content>
 
 <!-- ===== חגיגת "מותר לטגן" ===== -->
-@if (s().done && !sheet() && !pending() && !notice() && !resetAsk() && !manualOpen() && deleteIndex() === null) {
+@if (s().done && !sheet() && !pending() && !notice() && !resetAsk() && !manualOpen() && deleteIndex() === null && !welcomeOpen() && !bgHelpOpen()) {
   @for (k of [sceneKey()]; track k) {
   <div class="party" aria-hidden="true">
     @for (c of confetti; track $index) {
@@ -346,6 +329,85 @@
       <button type="button" class="btn dark full" (click)="confirmChange()">מבטיח/ה, להחליף</button>
       <button type="button" class="btn full oops" (click)="oopsAnother()">אופס… בעצם זו עוד אחת</button>
       <button type="button" class="link" (click)="cancelConfirm()">ביטול</button>
+    </div>
+  </div>
+}
+
+<!-- ===== ברוכים הבאים: חיבור למד הצעדים ===== -->
+@if (welcomeOpen()) {
+  <div class="backdrop center" dir="rtl">
+    <div class="dialog welcome" role="dialog" aria-modal="true" aria-labelledby="welcome-title">
+      <div class="welcome-art" aria-hidden="true">
+        <svg class="welcome-donut" width="120" height="120" viewBox="-80 -80 160 160">
+          <ellipse cx="0" cy="10" rx="70" ry="58" fill="#B8692A" />
+          <ellipse cx="0" cy="0" rx="70" ry="56" fill="#E39A4B" />
+          <ellipse cx="0" cy="-8" rx="54" ry="38" fill="#F0B56C" />
+          <path d="M-44 -16 C-34 -36 -8 -42 6 -38 C26 -34 44 -26 48 -10 C34 -20 18 -12 0 -16 C-18 -20 -32 -8 -44 -16 Z" fill="#FFF8EC" />
+          <path d="M-12 -34 C-16 -50 12 -54 14 -40 C24 -36 20 -22 6 -24 C0 -16 -14 -20 -12 -28 C-22 -28 -20 -38 -12 -34 Z" fill="#C8102E" />
+          <path d="M-29 -2 Q-21 -13 -13 -2" fill="none" stroke="#3B2311" stroke-width="5" stroke-linecap="round" />
+          <path d="M13 -2 Q21 -13 29 -2" fill="none" stroke="#3B2311" stroke-width="5" stroke-linecap="round" />
+          <path d="M-18 10 Q0 36 18 10 Z" fill="#3B2311" />
+          <ellipse cx="-38" cy="12" rx="8" ry="5" fill="#F28B82" opacity="0.75" />
+          <ellipse cx="38" cy="12" rx="8" ry="5" fill="#F28B82" opacity="0.75" />
+        </svg>
+        <svg class="welcome-steps" width="150" height="34" viewBox="0 0 150 34">
+          <g fill="#B8571B">
+            <ellipse cx="14" cy="22" rx="6" ry="9" transform="rotate(-12 14 22)" />
+            <ellipse cx="44" cy="12" rx="6" ry="9" transform="rotate(12 44 12)" />
+            <ellipse cx="74" cy="22" rx="6" ry="9" transform="rotate(-12 74 22)" />
+            <ellipse cx="104" cy="12" rx="6" ry="9" transform="rotate(12 104 12)" />
+            <ellipse cx="134" cy="22" rx="6" ry="9" transform="rotate(-12 134 22)" />
+          </g>
+        </svg>
+      </div>
+
+      @if (pedo.sensor() === 'denied') {
+        <h2 id="welcome-title">צריך עוד אישור קטן</h2>
+        <p>כדי לספור צעדים, סופגנומטר צריך גישה ל"פעילות גופנית". פותחים את הגדרות האפליקציה בטלפון ← הרשאות ← פעילות גופנית ← אישור, וחוזרים לכאן.</p>
+        <button type="button" class="btn primary full" (click)="connectFromWelcome()">לנסות שוב</button>
+        <button type="button" class="link" (click)="welcomeOpen.set(false)">אחר כך</button>
+      } @else {
+        <h2 id="welcome-title">בואו נתחיל לשרוף!</h2>
+        <p>סופגנומטר סופר את הצעדים שלך ומוריד אותם מהסופגנייה האחרונה שנכנסה.</p>
+        <ul class="perks">
+          <li><span class="perk-dot"></span>סופר מחיישן הצעדים של הטלפון, גם כשהאפליקציה סגורה</li>
+          <li><span class="perk-dot"></span>בלי הרשמה ובלי חשבון – הכל נשמר רק אצלך</li>
+          <li><span class="perk-dot"></span>בהמשך תתבקשו לאשר גישה לצעדים בלבד</li>
+        </ul>
+        <button type="button" class="btn primary full" (click)="connectFromWelcome()">יאללה, לחבר את מד הצעדים</button>
+        <button type="button" class="link" (click)="welcomeOpen.set(false)">אחר כך</button>
+      }
+    </div>
+  </div>
+}
+
+<!-- ===== הצעדים לא נספרים? ===== -->
+@if (bgHelpOpen()) {
+  <div class="backdrop center" dir="rtl">
+    <div class="dialog" role="dialog" aria-modal="true" aria-labelledby="bghelp-title">
+      <svg width="52" height="52" viewBox="0 0 24 24" fill="none" stroke="#B8571B" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9" /><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0" /></svg>
+      @if (pedo.hcReady() && !pedo.bgNotify()) {
+        <h2 id="bghelp-title">הצעדים לא נספרים?</h2>
+        <p>כרגע הטלפון עצמו סופר את הצעדים כשהאפליקציה סגורה. בחלק מהטלפונים זה עוד לא עובד.</p>
+        <p>אפשר לעבור לספירה אחרת, שעובדת בכל טלפון – אבל אז תופיע <b>התראה קבועה</b> ברקע כל עוד יש סופגנייה בתור.</p>
+        <button type="button" class="btn primary full" (click)="setBgNotify(true)">כן, אני רוצה</button>
+        <button type="button" class="link" (click)="bgHelpOpen.set(false)">לא תודה</button>
+      } @else if (pedo.hcReady()) {
+        <h2 id="bghelp-title">ספירה עם התראה פעילה</h2>
+        <p>כרגע הצעדים נספרים ברקע עם התראה קבועה. אפשר לחזור לספירה של הטלפון עצמו, בלי התראה.</p>
+        <button type="button" class="btn primary full" (click)="setBgNotify(false)">לחזור לספירה בלי התראה</button>
+        <button type="button" class="link" (click)="bgHelpOpen.set(false)">להשאיר כך</button>
+      } @else if (pedo.hcAvailable()) {
+        <h2 id="bghelp-title">הצעדים לא נספרים?</h2>
+        <p>כרגע הצעדים נספרים ברקע עם התראה קבועה, כי לא אושרה גישה ל-Health Connect.</p>
+        <p>אם תאשרו גישה לצעדים ב-Health Connect, הטלפון יספור לבד – בלי התראה.</p>
+        <button type="button" class="btn primary full" (click)="connectHealthFromHelp()">לאשר את Health Connect</button>
+        <button type="button" class="link" (click)="bgHelpOpen.set(false)">לא תודה</button>
+      } @else {
+        <h2 id="bghelp-title">הצעדים לא נספרים?</h2>
+        <p>הספירה ברקע פועלת עם התראה קבועה כל עוד יש סופגנייה בתור. אם ההתראה נעלמה, כדאי לבדוק בהגדרות הסוללה שהאפליקציה "ללא הגבלה".</p>
+        <button type="button" class="btn primary full" (click)="bgHelpOpen.set(false)">הבנתי</button>
+      }
     </div>
   </div>
 }
