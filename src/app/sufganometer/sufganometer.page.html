@@ -290,6 +290,73 @@
           }
         </div>
       } @else {
+        @if (customOpen()) {
+        <div class="builder">
+          <div class="estimate" aria-live="polite">
+            <svg width="58" height="58" viewBox="-80 -80 160 160" aria-hidden="true">
+              <ellipse cx="0" cy="10" rx="70" ry="58" fill="#B8692A" />
+              <ellipse cx="0" cy="0" rx="70" ry="56" fill="#E39A4B" />
+              <ellipse cx="0" cy="-8" rx="54" ry="38" fill="#F0B56C" />
+              <path d="M-14 -38 C-20 -56 16 -60 18 -42 C30 -38 24 -20 8 -22 C0 -12 -18 -18 -16 -28 C-28 -28 -26 -42 -14 -38 Z" [attr.fill]="customType().topping" />
+            </svg>
+            <span class="estimate-text">
+              <span class="estimate-name">{{ customType().name }}</span>
+              <span class="estimate-num">{{ cExact() ? '' : '≈ ' }}{{ fmt(customType().kcal) }} קל׳ · {{ customSteps() }} צעדים</span>
+            </span>
+          </div>
+
+          @if (!cExact()) {
+            <div class="opt-group">
+              <span class="opt-title">גודל</span>
+              <div class="opts">
+                @for (o of sizes; track o.id) {
+                  <button type="button" class="opt" [class.on]="cSize() === o.id" [attr.aria-pressed]="cSize() === o.id" (click)="cSize.set(o.id)">{{ o.label }}</button>
+                }
+              </div>
+            </div>
+            <div class="opt-group">
+              <span class="opt-title">מילוי</span>
+              <div class="opts">
+                @for (o of fillings; track o.id) {
+                  <button type="button" class="opt" [class.on]="cFilling() === o.id" [attr.aria-pressed]="cFilling() === o.id" (click)="cFilling.set(o.id)">
+                    @if (o.color) { <span class="swatch" [style.background]="o.color"></span> }
+                    {{ o.label }}
+                  </button>
+                }
+              </div>
+            </div>
+            <div class="opt-group">
+              <span class="opt-title">ציפוי</span>
+              <div class="opts">
+                @for (o of toppings; track o.id) {
+                  <button type="button" class="opt" [class.on]="cTopping() === o.id" [attr.aria-pressed]="cTopping() === o.id" (click)="cTopping.set(o.id)">{{ o.label }}</button>
+                }
+              </div>
+            </div>
+          } @else {
+            <label class="field">
+              <span>כמה קלוריות כתוב על התווית?</span>
+              <input type="number" inputmode="numeric" min="30" max="2000" placeholder="למשל 420"
+                     [value]="cExactKcal() || ''" (input)="onExactInput($event)" />
+            </label>
+          }
+
+          <label class="exact-toggle">
+            <input type="checkbox" [checked]="cExact()" (change)="cExact.set($any($event.target).checked)" />
+            <span>אני יודע/ת בדיוק כמה קלוריות</span>
+          </label>
+
+          <label class="field">
+            <span>שם (לא חובה)</span>
+            <input type="text" maxlength="30" placeholder="למשל: הפיסטוק מהמאפייה" [value]="cName()" (input)="onNameInput($event)" />
+          </label>
+
+          <button type="button" class="btn primary full" [disabled]="!canAddCustom()" (click)="confirmCustom()">
+            {{ sheet() === 'change' ? 'להחליף לסופגנייה הזו' : 'אכלתי את זה' }}
+          </button>
+          <p class="fine">הערכה גסה – מאפיות שונות משתנות בגודל ובכמות המילוי.</p>
+        </div>
+        } @else {
         <div class="types">
           @for (t of types; track t.id) {
             <button type="button" class="type-card" [class.current]="sheet() === 'change' && s().viewed?.type?.id === t.id" (click)="pickType(t)">
@@ -306,10 +373,18 @@
               }
             </button>
           }
+          <button type="button" class="type-card custom-card" (click)="openCustom()">
+            <span class="custom-plus" aria-hidden="true">
+              <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M12 5v14M5 12h14" /></svg>
+            </span>
+            <span class="type-name">סופגנייה אחרת</span>
+            <span class="type-meta">בונים לבד, ואנחנו מעריכים</span>
+          </button>
         </div>
       }
 
-      <button type="button" class="btn ghost" (click)="closeSheet()">{{ sheet() === 'queue' ? 'סגירה' : 'ביטול' }}</button>
+        }
+      <button type="button" class="btn ghost" (click)="closeSheet()">{{ customOpen() ? 'חזרה' : sheet() === 'queue' ? 'סגירה' : 'ביטול' }}</button>
     </div>
   </div>
 }

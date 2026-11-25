@@ -3,7 +3,19 @@ import { IonContent } from '@ionic/angular/standalone';
 import { App } from '@capacitor/app';
 import type { PluginListenerHandle } from '@capacitor/core';
 import { PedometerService, SensorState, BankOutcome } from './pedometer.service';
-import { DONUT_TYPES, DonutType, fmt, ringColor, stepsFor, theName } from './donut-calc';
+import {
+  CUSTOM_FILLINGS,
+  CUSTOM_SIZES,
+  CUSTOM_TOPPINGS,
+  DONUT_TYPES,
+  DonutType,
+  buildCustomType,
+  fmt,
+  ringColor,
+  stepsFor,
+  theName,
+  typeOf,
+} from './donut-calc';
 
 type SheetMode = 'add' | 'change' | 'queue' | null;
 
@@ -54,6 +66,29 @@ export class SufganometerPage implements OnInit, OnDestroy {
   readonly pending = signal<DonutType | null>(null);
   readonly notice = signal<Notice | null>(null);
   readonly resetAsk = signal(false);
+
+  // ---------- "סופגנייה אחרת" ----------
+  readonly sizes = CUSTOM_SIZES;
+  readonly fillings = CUSTOM_FILLINGS;
+  readonly toppings = CUSTOM_TOPPINGS;
+  readonly customOpen = signal(false);
+  readonly cSize = signal('regular');
+  readonly cFilling = signal('jam');
+  readonly cTopping = signal('sugar');
+  readonly cExact = signal(false);
+  readonly cExactKcal = signal(0);
+  readonly cName = signal('');
+  readonly customType = computed(() =>
+    buildCustomType({
+      size: this.cSize(),
+      filling: this.cFilling(),
+      topping: this.cTopping(),
+      exactKcal: this.cExact() ? this.cExactKcal() : null,
+      name: this.cName(),
+    }),
+  );
+  readonly customSteps = computed(() => fmt(stepsFor(this.customType(), this.pedo.kcalPerStep)));
+  readonly canAddCustom = computed(() => !this.cExact() || (this.cExactKcal() >= 30 && this.cExactKcal() <= 2000));
 
   // ---------- חלונות חיבור ----------
   readonly welcomeOpen = signal(false);
@@ -117,7 +152,7 @@ export class SufganometerPage implements OnInit, OnDestroy {
   readonly showConnect = computed(() => ['needs-permission', 'denied'].includes(this.pedo.sensor()));
   readonly lastType = computed(() => {
     const list = this.pedo.eaten();
-    return list.length ? (DONUT_TYPES.find((t) => t.id === list[list.length - 1].typeId) ?? DONUT_TYPES[1]) : DONUT_TYPES[1];
+    return list.length ? typeOf(list[list.length - 1]) : DONUT_TYPES[1];
   });
 
   readonly progress = computed(() => this.s().viewed?.progress ?? 0);
@@ -177,9 +212,16 @@ export class SufganometerPage implements OnInit, OnDestroy {
   });
 
   readonly sheetTitle = computed(() =>
-    this.sheet() === 'change' ? 'לאיזו סופגנייה להחליף?' : this.sheet() === 'queue' ? 'הסופגניות בתור' : 'איזו סופגנייה נכנסה?',
+    this.customOpen()
+      ? 'סופגנייה אחרת'
+      : this.sheet() === 'change'
+        ? 'לאיזו סופגנייה להחליף?'
+        : this.sheet() === 'queue'
+          ? 'הסופגניות בתור'
+          : 'איזו סופגנייה נכנסה?',
   );
   readonly sheetSub = computed(() => {
+    if (this.customOpen()) return 'בוחרים גודל, מילוי וציפוי – ואנחנו מעריכים כמה קלוריות נכנסו';
     if (this.sheet() === 'change') return 'הצעדים שכבר נספרו לה יישארו, ויקוזזו לפי הגודל החדש';
     if (this.sheet() === 'queue') return 'בחרו איזו סופגנייה לשרוף עכשיו. מה שכבר נספר לכל אחת נשמר לה.';
     const bank = this.s().bank;
@@ -256,6 +298,10 @@ export class SufganometerPage implements OnInit, OnDestroy {
   }
 
   closeSheet(): void {
+    if (this.customOpen()) {
+      this.customOpen.set(false); // חזרה מהבנייה לבחירת הסוגים
+      return;
+    }
     this.sheet.set(null);
   }
 
@@ -266,8 +312,34 @@ export class SufganometerPage implements OnInit, OnDestroy {
     }
     const viewed = this.s().viewed;
     this.sheet.set(null);
-    if (!viewed || viewed.type.id === type.id) return;
+    if (!viewed || (type.id !== 'custom' && viewed.type.id === type.id)) return;
     this.pending.set(type);
+  }
+
+  openCustom(): void {
+    this.cSize.set('regular');
+    this.cFilling.set('jam');
+    this.cTopping.set('sugar');
+    this.cExact.set(false);
+    this.cExactKcal.set(0);
+    this.cName.set('');
+    this.customOpen.set(true);
+  }
+
+  onExactInput(event: Event): void {
+    const v = parseInt((event.target as HTMLInputElement).value, 10);
+    this.cExactKcal.set(Number.isFinite(v) && v > 0 ? Math.min(v, 2000) : 0);
+  }
+
+  onNameInput(event: Event): void {
+    this.cName.set((event.target as HTMLInputElement).value.slice(0, 30));
+  }
+
+  confirmCustom(): void {
+    if (!this.canAddCustom()) return;
+    const type = this.customType();
+    this.customOpen.set(false);
+    this.pickType(type);
   }
 
   showInDashboard(index: number, burned: boolean): void {

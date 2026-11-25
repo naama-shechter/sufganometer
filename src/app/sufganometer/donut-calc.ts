@@ -25,6 +25,86 @@ export interface EatenDonut {
   at: number; // epoch ms
   /** צעדים שכבר נספרו לסופגנייה הזו */
   credited: number;
+  /** סופגנייה אחרת שהמשתמש בנה בעצמו (typeId === 'custom') */
+  custom?: { name: string; kcal: number; topping: string };
+}
+
+// ---------- "סופגנייה אחרת": הערכת קלוריות לפי גודל, מילוי וציפוי (הערכה גסה בלבד) ----------
+
+export interface CustomOption {
+  id: string;
+  label: string;
+  /** תוספת קלוריות לסופגנייה בגודל רגיל */
+  kcal: number;
+  /** צבע הציפוי באייקון */
+  color?: string;
+  /** איך זה נשמע בשם: "סופגניית ___" */
+  word?: string;
+}
+
+export const CUSTOM_SIZES: (CustomOption & { mult: number })[] = [
+  { id: 'mini', label: 'מיני', kcal: 0, mult: 0.45 },
+  { id: 'regular', label: 'רגילה', kcal: 0, mult: 1 },
+  { id: 'large', label: 'ענקית', kcal: 0, mult: 1.6 },
+];
+
+export const CUSTOM_FILLINGS: CustomOption[] = [
+  { id: 'none', label: 'בלי מילוי', kcal: 0 },
+  { id: 'jam', label: 'ריבה', kcal: 70, color: '#C8102E', word: 'ריבה' },
+  { id: 'cream', label: 'קרם וניל', kcal: 90, color: '#F3E3B5', word: 'קרם' },
+  { id: 'choc', label: 'שוקולד', kcal: 130, color: '#5A3418', word: 'שוקולד' },
+  { id: 'dulce', label: 'ריבת חלב', kcal: 140, color: '#B8732E', word: "דולצ'ה" },
+  { id: 'pistachio', label: 'פיסטוק', kcal: 160, color: '#8DB255', word: 'פיסטוק' },
+  { id: 'lotus', label: 'לוטוס', kcal: 150, color: '#A0642F', word: 'לוטוס' },
+];
+
+export const CUSTOM_TOPPINGS: CustomOption[] = [
+  { id: 'sugar', label: 'אבקת סוכר', kcal: 15 },
+  { id: 'glaze', label: 'זיגוג', kcal: 60, color: '#F6C9D6', word: 'עם זיגוג' },
+  { id: 'choc', label: 'ציפוי שוקולד', kcal: 90, color: '#5A3418', word: 'עם ציפוי שוקולד' },
+  { id: 'deco', label: 'קרם וקישוטים', kcal: 130, color: '#E8546B', word: 'עם קרם וקישוטים' },
+];
+
+/** בצק מטוגן בגודל רגיל, בלי מילוי וציפוי */
+const CUSTOM_BASE_KCAL = 250;
+
+export interface CustomChoice {
+  size: string;
+  filling: string;
+  topping: string;
+  /** הזנה מדויקת (למשל מהתווית). אם קיים – גובר על ההערכה */
+  exactKcal?: number | null;
+  name?: string;
+}
+
+/** הופך בחירות של "סופגנייה אחרת" לסוג סופגנייה עם הערכת קלוריות, שם וצבע */
+export function buildCustomType(c: CustomChoice): DonutType {
+  const size = CUSTOM_SIZES.find((x) => x.id === c.size) ?? CUSTOM_SIZES[1];
+  const filling = CUSTOM_FILLINGS.find((x) => x.id === c.filling) ?? CUSTOM_FILLINGS[0];
+  const topping = CUSTOM_TOPPINGS.find((x) => x.id === c.topping) ?? CUSTOM_TOPPINGS[0];
+  const estimate = Math.round(((CUSTOM_BASE_KCAL + filling.kcal + topping.kcal) * size.mult) / 10) * 10;
+  const kcal = c.exactKcal && c.exactKcal > 0 ? Math.round(c.exactKcal) : estimate;
+
+  let auto = filling.word ? 'סופגניית ' + filling.word : 'סופגנייה ' + (topping.word ?? 'עם אבקת סוכר');
+  if (size.id === 'mini') auto += ' (מיני)';
+  if (size.id === 'large') auto += ' (ענקית)';
+  const name = (c.name ?? '').trim().slice(0, 30) || auto;
+
+  // צבע הציפוי באייקון: ציפוי בולט קודם, אחר כך המילוי, ובלי שניהם – אבקת סוכר לבנה
+  const color = (topping.id !== 'sugar' ? topping.color : undefined) ?? filling.color ?? '#FFF8EC';
+  return { id: 'custom', name, kcal, topping: color };
+}
+
+/** הסוג של סופגנייה שנאכלה – מהרשימה הקבועה, או "סופגנייה אחרת" */
+export function typeOf(d: EatenDonut): DonutType {
+  return d.custom ? { id: 'custom', ...d.custom } : typeById(d.typeId);
+}
+
+/** רשומת סופגנייה לשמירה מסוג נתון */
+export function eatenFields(type: DonutType): Pick<EatenDonut, 'typeId' | 'custom'> {
+  return type.id === 'custom'
+    ? { typeId: 'custom', custom: { name: type.name, kcal: type.kcal, topping: type.topping } }
+    : { typeId: type.id, custom: undefined };
 }
 
 export interface DonutSlot {
@@ -70,7 +150,7 @@ export function stepsFor(type: DonutType, kcalPerStep: number): number {
 
 /** הסופגנייה שמקבלת צעדים: זו שנבחרה (אם עוד לא נשרפה), אחרת הראשונה שלא נשרפה. -1 אם אין */
 export function activeIndex(eaten: EatenDonut[], focus: number | null, kcalPerStep: number): number {
-  const open = (d: EatenDonut) => d.credited < stepsFor(typeById(d.typeId), kcalPerStep);
+  const open = (d: EatenDonut) => d.credited < stepsFor(typeOf(d), kcalPerStep);
   if (focus !== null && focus < eaten.length && open(eaten[focus])) return focus;
   return eaten.findIndex(open);
 }
@@ -87,7 +167,7 @@ export function distribute(
   while (rest > 0) {
     const a = activeIndex(list, focus, kcalPerStep);
     if (a < 0) break;
-    const take = Math.min(rest, stepsFor(typeById(list[a].typeId), kcalPerStep) - list[a].credited);
+    const take = Math.min(rest, stepsFor(typeOf(list[a]), kcalPerStep) - list[a].credited);
     list[a].credited += take;
     rest -= take;
   }
@@ -101,7 +181,7 @@ export function computeStatus(
   focusIndex: number | null = null,
 ): BurnStatus {
   const slots: DonutSlot[] = eaten.map((d, index) => {
-    const type = typeById(d.typeId);
+    const type = typeOf(d);
     const need = stepsFor(type, kcalPerStep);
     const done = Math.min(need, Math.max(0, d.credited ?? 0));
     return { index, type, need, done, left: need - done, burned: done >= need, progress: done / need };
@@ -172,7 +252,9 @@ export function ringEnds(p: number): { start: string; end: string } {
 
 /** "ה" + שם: "סופגניית ריבה" ← "סופגניית הריבה", אחרת "ה" + השם */
 export function theName(name: string): string {
-  return name.startsWith('סופגניית ') ? 'סופגניית ה' + name.slice(9) : 'ה' + name;
+  if (name.startsWith('סופגניית ')) return 'סופגניית ה' + name.slice(9);
+  if (name.startsWith('ה')) return name; // שם שהמשתמש כתב וכבר מיודע ("הפיסטוק מהמאפייה")
+  return 'ה' + name;
 }
 
 export function fmt(n: number): string {

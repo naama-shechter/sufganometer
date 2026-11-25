@@ -2,7 +2,7 @@ import { Injectable, NgZone, computed, effect, inject, signal, untracked } from 
 import { Capacitor, PluginListenerHandle, registerPlugin } from '@capacitor/core';
 import { App } from '@capacitor/app';
 import { CapacitorPedometer } from '@capgo/capacitor-pedometer';
-import { BurnStatus, DonutType, EatenDonut, computeStatus, distribute, stepsFor } from './donut-calc';
+import { BurnStatus, DonutType, EatenDonut, computeStatus, distribute, eatenFields, stepsFor } from './donut-calc';
 
 export type SensorState =
   | 'checking'
@@ -172,7 +172,7 @@ export class PedometerService {
     const bank = this.bank();
     const need = stepsFor(type, this.kcalPerStep);
     const fromBank = Math.min(bank, need);
-    this.eaten.update((list) => [...list, { typeId: type.id, at: Date.now(), credited: fromBank }]);
+    this.eaten.update((list) => [...list, { ...eatenFields(type), at: Date.now(), credited: fromBank }]);
     this.bank.set(bank - fromBank);
     this.save();
 
@@ -185,7 +185,7 @@ export class PedometerService {
   /** החלפת סוג של סופגנייה בתור. הצעדים שכבר נספרו לה נשארים ומקוזזים לפי הגודל החדש */
   changeType(index: number, type: DonutType): void {
     const need = stepsFor(type, this.kcalPerStep);
-    let list = this.eaten().map((d, i) => (i === index ? { ...d, typeId: type.id, credited: Math.min(d.credited, need) } : d));
+    let list = this.eaten().map((d, i) => (i === index ? { ...d, ...eatenFields(type), credited: Math.min(d.credited, need) } : d));
     const overflow = this.eaten()[index].credited - need;
     if (overflow > 0) {
       // הסוג החדש קטן יותר והצעדים כבר כיסו אותו – העודף ממשיך לבאה בתור או לבנק
