@@ -1,5 +1,5 @@
 import { Injectable, NgZone, computed, inject, signal } from '@angular/core';
-import { Capacitor, PluginListenerHandle } from '@capacitor/core';
+import { Capacitor, PluginListenerHandle, registerPlugin } from '@capacitor/core';
 import { App } from '@capacitor/app';
 import { CapacitorPedometer } from '@capgo/capacitor-pedometer';
 import { DonutType, EatenDonut, computeStatus, distribute, stepsFor } from './donut-calc';
@@ -25,9 +25,32 @@ interface SavedState {
   bank: number;
   focus: number | null;
   trackingStart: number;
+  /** צעדים שהוזנו ידנית (לא מהחיישן) */
+  manual?: number;
+  /** Android: הערך הגולמי האחרון של מונה הצעדים, וזמן האתחול שאליו הוא שייך */
+  lastRaw?: number | null;
+  lastBoot?: number;
 }
 
+// אותו מפתח כמו קודם – השדות החדשים אופציונליים, כך שהנתונים הקיימים נשמרים
 const STORAGE_KEY = 'sufganometer.v3';
+
+/** תוסף מקומי (android/.../StepSensorPlugin.java): מונה הצעדים הגולמי מאז האתחול */
+interface StepReading {
+  count: number;
+  bootTime: number;
+}
+interface StepSensorPlugin {
+  isAvailable(): Promise<{ available: boolean }>;
+  getCount(): Promise<StepReading>;
+  start(): Promise<void>;
+  stop(): Promise<void>;
+  addListener(event: 'count', fn: (r: StepReading) => void): Promise<PluginListenerHandle>;
+}
+const StepSensor = registerPlugin<StepSensorPlugin>('StepSensor');
+
+/** הפרש זמן אתחול שמעליו מניחים שהטלפון הופעל מחדש (המונה התאפס) */
+const REBOOT_TOLERANCE_MS = 2 * 60 * 1000;
 
 /**
  * מחבר את מד הצעדים המובנה של הטלפון (iOS: CMPedometer, Android: TYPE_STEP_COUNTER)
@@ -36,7 +59,8 @@ const STORAGE_KEY = 'sufganometer.v3';
  *
  * iOS  – בכל חזרה לאפליקציה שולפים מהמערכת את כל הצעדים מאז תחילת המעקב
  *        (עד 7 ימים אחורה), כולל כשהאפליקציה הייתה סגורה.
- * Android – נספרים רק צעדים בזמן שהאפליקציה פתוחה, והסכום נשמר מקומית.
+ * Android – מונה הצעדים של החומרה ממשיך לספור גם כשהאפליקציה סגורה. שומרים את הערך האחרון
+ *           שראינו, ובכל חזרה לאפליקציה מוסיפים את ההפרש – כך צעדים מהרקע לא הולכים לאיבוד.
  */
 @Injectable({ providedIn: 'root' })
 export class PedometerService {
@@ -45,6 +69,7 @@ export class PedometerService {
   readonly kcalPerStep = 0.04;
   readonly isNative = Capacitor.isNativePlatform();
   readonly isIos = Capacitor.getPlatform() === 'ios';
+  readonly isAndroid = Capacitor.getPlatform() === 'android';
 
   readonly sensor = signal<SensorState>('checking');
   /** סך הצעדים שנספרו מאז תחילת המעקב (לתצוגה ולסנכרון מול החיישן) */
@@ -52,6 +77,10 @@ export class PedometerService {
   readonly eaten = signal<EatenDonut[]>([]);
   /** צעדים שלא שויכו לאף סופגנייה */
   readonly bank = signal(0);
+  /** צעדים שהוזנו ידנית */
+  readonly manual = signal(0);
+  /** כל הצעדים שנספרו – מהחיישן ומהזנה ידנית */
+  readonly countedSteps = computed(() => this.steps() + this.manual());
   /** איזו סופגנייה מהתור נבחרה לשריפה (null = הראשונה שעוד לא נשרפה) */
   readonly focus = signal<number | null>(null);
   readonly simulating = signal(false);
@@ -63,6 +92,9 @@ export class PedometerService {
   private lastLive = 0;
   private liveOffset = 0;
   private measurementListener?: PluginListenerHandle;
+  private rawListener?: PluginListenerHandle;
+  private lastRaw: number | null = null;
+  private lastBoot = 0;
   private wantLive = false;
   private initialized = false;
   private simTimer?: ReturnType<typeof setInterval>;
@@ -161,9 +193,33 @@ export class PedometerService {
     this.baseSteps = 0;
     this.liveOffset = this.lastLive;
     this.steps.set(0);
+    this.manual.set(0);
     this.eaten.set([]);
     this.bank.set(0);
     this.focus.set(null);
+    this.save();
+  }
+
+  /** הזנה ידנית של צעדים: הולכים לסופגנייה הפעילה, עודף לבאות בתור ואז לבנק */
+  addManualSteps(n: number): void {
+    const amount = Math.max(0, Math.round(n));
+    if (!amount) return;
+    this.manual.update((m) => m + amount);
+    this.applySteps(amount);
+  }
+
+  /** מחיקת סופגנייה מהתור. הצעדים שנספרו לה עוברים לבאה בתור, או לבנק */
+  removeDonut(index: number): void {
+    const list = this.eaten();
+    if (index < 0 || index >= list.length) return;
+    const freed = list[index].credited;
+    const rest = list.filter((_, i) => i !== index);
+    const f = this.focus();
+    const focus = f === null || f === index ? null : f > index ? f - 1 : f;
+    const r = distribute(rest, focus, freed, this.kcalPerStep);
+    this.eaten.set(r.eaten);
+    this.focus.set(focus);
+    if (r.rest > 0) this.bank.update((b) => b + r.rest);
     this.save();
   }
 
@@ -190,12 +246,19 @@ export class PedometerService {
     const delta = total - this.steps();
     this.steps.set(total);
     if (delta > 0) {
-      const r = distribute(this.eaten(), this.focus(), delta, this.kcalPerStep);
-      this.eaten.set(r.eaten);
-      if (r.rest > 0) this.bank.update((b) => b + r.rest);
-      const f = this.focus();
-      if (f !== null && this.status().current?.index !== f) this.focus.set(null);
+      this.applySteps(delta);
+    } else {
+      this.save();
     }
+  }
+
+  /** מחלק צעדים חדשים לסופגנייה הפעילה / לתור / לבנק */
+  private applySteps(amount: number): void {
+    const r = distribute(this.eaten(), this.focus(), amount, this.kcalPerStep);
+    this.eaten.set(r.eaten);
+    if (r.rest > 0) this.bank.update((b) => b + r.rest);
+    const f = this.focus();
+    if (f !== null && this.status().current?.index !== f) this.focus.set(null);
     this.save();
   }
 
@@ -204,6 +267,13 @@ export class PedometerService {
   private async startLive(): Promise<void> {
     this.wantLive = true;
     await this.stopLiveUpdates();
+
+    if (this.isAndroid) {
+      await this.startAndroidCounter();
+      this.sensor.set('live');
+      return;
+    }
+
     await this.syncBaseFromSystem();
 
     this.lastLive = 0;
@@ -219,6 +289,16 @@ export class PedometerService {
   }
 
   private async stopLiveUpdates(): Promise<void> {
+    if (this.isAndroid) {
+      try {
+        await StepSensor.stop();
+      } catch {
+        /* לא היה סשן פעיל */
+      }
+      await this.rawListener?.remove();
+      this.rawListener = undefined;
+      return;
+    }
     try {
       await CapacitorPedometer.stopMeasurementUpdates();
     } catch {
@@ -226,6 +306,38 @@ export class PedometerService {
     }
     await this.measurementListener?.remove();
     this.measurementListener = undefined;
+  }
+
+  /** Android: קריאה אחת להשלמת צעדים מהרקע, ואז עדכונים חיים כל עוד האפליקציה פתוחה */
+  private async startAndroidCounter(): Promise<void> {
+    try {
+      this.applyRaw(await StepSensor.getCount());
+    } catch (err) {
+      console.warn('[Sufganometer] could not read step counter for catch-up', err);
+    }
+    this.rawListener = await StepSensor.addListener('count', (r) => this.zone.run(() => this.applyRaw(r)));
+    await StepSensor.start();
+  }
+
+  /** מוסיף את ההפרש מאז הקריאה הקודמת של מונה החומרה */
+  private applyRaw(r: StepReading): void {
+    const count = Math.max(0, Math.round(r.count));
+    const rebooted = this.lastBoot > 0 && Math.abs(r.bootTime - this.lastBoot) > REBOOT_TOLERANCE_MS;
+    let delta = 0;
+    if (this.lastRaw === null) {
+      delta = 0; // קריאה ראשונה אי פעם – רק קובעים נקודת התחלה
+    } else if (rebooted || count < this.lastRaw) {
+      delta = count; // הטלפון הופעל מחדש והמונה התאפס: סופרים מה שנצבר מאז
+    } else {
+      delta = count - this.lastRaw;
+    }
+    this.lastRaw = count;
+    this.lastBoot = r.bootTime;
+    if (delta > 0) {
+      this.setTotalSteps(this.steps() + delta);
+    } else {
+      this.save();
+    }
   }
 
   /** באייפון: שולף מהמערכת את כל הצעדים מאז תחילת המעקב (גם כשהאפליקציה הייתה סגורה) */
@@ -277,6 +389,9 @@ export class PedometerService {
       this.bank.set(saved.bank ?? 0);
       this.focus.set(saved.focus ?? null);
       this.trackingStart = saved.trackingStart ?? 0;
+      this.manual.set(saved.manual ?? 0);
+      this.lastRaw = saved.lastRaw ?? null;
+      this.lastBoot = saved.lastBoot ?? 0;
     } catch {
       /* נתונים פגומים – מתחילים מחדש */
     }
@@ -289,6 +404,9 @@ export class PedometerService {
       bank: this.bank(),
       focus: this.focus(),
       trackingStart: this.trackingStart,
+      manual: this.manual(),
+      lastRaw: this.lastRaw,
+      lastBoot: this.lastBoot,
     };
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(state));

@@ -191,7 +191,7 @@
     </section>
 
     <section class="stats">
-      <div class="stat"><span class="label">צעדים שנספרו</span><span class="value">{{ fmt(count(pedo.steps())) }}</span></div>
+      <div class="stat"><span class="label">צעדים שנספרו</span><span class="value">{{ fmt(count(pedo.countedSteps())) }}</span></div>
       <button type="button" class="stat stat-btn" aria-label="הצגת הסופגניות בתור" (click)="openSheet('queue')">
         <span class="label row">
           <span>בתור לשריפה</span>
@@ -199,7 +199,13 @@
         </span>
         <span class="value">{{ queueLabel() }}</span>
       </button>
-      <div class="stat"><span class="label">בבנק</span><span class="value">{{ fmt(count(s().bank)) }}</span></div>
+      <button type="button" class="stat stat-btn" aria-label="הוספת צעדים ידנית" (click)="openManual()">
+        <span class="label row">
+          <span>בבנק</span>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14" /></svg>
+        </span>
+        <span class="value">{{ fmt(count(s().bank)) }}</span>
+      </button>
     </section>
 
     <div class="actions">
@@ -214,10 +220,6 @@
       </button>
     </div>
 
-    @if (pedo.sensor() === 'live' && !pedo.isIos) {
-      <p class="note">באנדרואיד נספרים צעדים רק כשהאפליקציה פתוחה. ספירה ברקע תגיע עם Health Connect.</p>
-    }
-
     <div class="links">
       @if (pedo.sensor() === 'web') {
         <button type="button" class="link" (click)="pedo.addSteps(1000)">+1,000 צעדים (דמו)</button>
@@ -231,7 +233,7 @@
 </ion-content>
 
 <!-- ===== חגיגת "מותר לטגן" ===== -->
-@if (s().done && !sheet() && !pending() && !notice() && !resetAsk()) {
+@if (s().done && !sheet() && !pending() && !notice() && !resetAsk() && !manualOpen() && deleteIndex() === null) {
   @for (k of [sceneKey()]; track k) {
   <div class="party" aria-hidden="true">
     @for (c of confetti; track $index) {
@@ -263,6 +265,7 @@
       @if (sheet() === 'queue') {
         <div class="queue">
           @for (q of queueItems(); track q.slot.index) {
+            <div class="queue-item">
             <button type="button" class="queue-row" [class.viewed]="q.isViewed" [class.burned]="q.slot.burned"
                     [disabled]="q.slot.burned" (click)="showInDashboard(q.slot.index, q.slot.burned)">
               <svg width="44" height="44" viewBox="-80 -80 160 160" aria-hidden="true">
@@ -282,6 +285,10 @@
                 <span class="tag">עכשיו</span>
               }
             </button>
+            <button type="button" class="queue-del" [attr.aria-label]="'מחיקת ' + q.slot.type.name + ' מהתור'" (click)="askDelete(q.slot.index)">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h16" /><path d="M10 11v6M14 11v6" /><path d="M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12" /><path d="M9 7V4h6v3" /></svg>
+            </button>
+            </div>
           } @empty {
             <p class="empty">עוד אין סופגניות. זה הזמן הכי טוב להתחיל.</p>
           }
@@ -322,6 +329,54 @@
       <button type="button" class="btn dark full" (click)="confirmChange()">מבטיח/ה, להחליף</button>
       <button type="button" class="btn full oops" (click)="oopsAnother()">אופס… בעצם זו עוד אחת</button>
       <button type="button" class="link" (click)="cancelConfirm()">ביטול</button>
+    </div>
+  </div>
+}
+
+<!-- ===== הזנה ידנית של צעדים ===== -->
+@if (manualOpen()) {
+  <div class="backdrop center" dir="rtl">
+    <div class="dialog" role="dialog" aria-modal="true" aria-labelledby="manual-title">
+      <svg width="52" height="52" viewBox="0 0 24 24" fill="none" stroke="#B8571B" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 20c-1.5 0-2.5-1.2-2.3-3l.6-5c.2-1.7 1.5-2.6 2.7-2.4 1.3.2 2 1.5 1.8 3.2l-.6 4.6C9 19 8.3 20 7 20z" /><path d="M16 14c-1.3 0-2.1-1-1.9-2.6l.5-4.3C14.8 5.6 16 4.8 17 5c1.1.2 1.7 1.3 1.5 2.8l-.5 4C17.8 13.2 17.1 14 16 14z" /></svg>
+      <h2 id="manual-title">הוספת צעדים ידנית</h2>
+      <p>הלכת בלי הטלפון? אפשר להוסיף כאן את הצעדים, והם ירדו מ{{ s().viewed ? 'ה' + s().viewed!.type.name : 'הסופגנייה הבאה (דרך הבנק)' }}.</p>
+      <p class="honest">רגע… תהיו כנים עם עצמכם. הסופגנייה יודעת הכל.</p>
+
+      <label class="field">
+        <span>כמה צעדים?</span>
+        <input type="number" inputmode="numeric" min="1" max="50000" placeholder="למשל 2000"
+               [value]="manualSteps() || ''" (input)="onManualInput($event)" />
+      </label>
+      <div class="quick">
+        @for (n of [500, 1000, 2000, 5000]; track n) {
+          <button type="button" class="quick-chip" (click)="addQuick(n)">+{{ fmt(n) }}</button>
+        }
+      </div>
+
+      <label class="oath">
+        <input type="checkbox" [checked]="manualOath()" (change)="manualOath.set($any($event.target).checked)" />
+        <span>אני מבטיח/ה שבאמת הלכתי את זה</span>
+      </label>
+
+      <button type="button" class="btn primary full" [disabled]="!canAddManual()" (click)="confirmManual()">להוסיף {{ manualSteps() ? fmt(manualSteps()) + ' צעדים' : '' }}</button>
+      <button type="button" class="link" (click)="manualOpen.set(false)">ביטול</button>
+    </div>
+  </div>
+}
+
+<!-- ===== מחיקת סופגנייה מהתור ===== -->
+@if (deleteTarget(); as d) {
+  <div class="backdrop center over" dir="rtl">
+    <div class="dialog" role="alertdialog" aria-modal="true" aria-label="מחיקת סופגנייה מהתור">
+      <svg width="52" height="52" viewBox="0 0 24 24" fill="none" stroke="#C8102E" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h16" /><path d="M10 11v6M14 11v6" /><path d="M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12" /><path d="M9 7V4h6v3" /></svg>
+      <h2>למחוק את ה{{ d.type.name }}?</h2>
+      @if (d.done > 0) {
+        <p>ה-{{ fmt(d.done) }} צעדים שכבר נספרו לה לא הולכים לאיבוד: הם יעברו לסופגנייה הבאה בתור, או לבנק אם אין.</p>
+      } @else {
+        <p>היא עוד לא התחילה להישרף, אז אין צעדים להעביר.</p>
+      }
+      <button type="button" class="btn primary full" (click)="confirmDelete()">כן, למחוק</button>
+      <button type="button" class="link" (click)="deleteIndex.set(null)">ביטול</button>
     </div>
   </div>
 }

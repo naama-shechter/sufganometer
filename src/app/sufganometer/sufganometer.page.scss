@@ -386,6 +386,7 @@ button {
 
   &.bottom { align-items: flex-end; justify-content: center; }
   &.center { align-items: center; justify-content: center; padding: 24px; box-sizing: border-box; }
+  &.over { z-index: 110; }
 }
 
 .sheet {
@@ -445,7 +446,28 @@ button {
   .empty { margin: 0; text-align: center; color: $muted; font-size: 14px; }
 }
 
+.queue-item {
+  display: flex;
+  align-items: stretch;
+  gap: 8px;
+}
+
+.queue-del {
+  flex: none;
+  width: 48px;
+  border-radius: 16px;
+  border: 2px solid #d9bf94;
+  background: #fffbf2;
+  color: $jam;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  &:active { background: #fde4e4; }
+}
+
 .queue-row {
+  flex: 1;
+  min-width: 0;
   display: flex;
   align-items: center;
   gap: 10px;
@@ -509,6 +531,55 @@ button {
   h2 { margin: 0; font-size: 23px; font-weight: 900; }
   p { margin: 0; font-size: 15px; line-height: 1.45; }
   .muted { font-size: 13px; color: $muted; }
+  .honest { font-size: 14px; font-weight: 700; color: $brown; }
+
+  .field {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    text-align: right;
+    font-size: 13px;
+    color: $muted;
+
+    input {
+      font-family: inherit;
+      font-size: 22px;
+      font-weight: 700;
+      color: $ink;
+      text-align: center;
+      height: 52px;
+      border: 2px solid $ink;
+      border-radius: 14px;
+      background: $ground;
+      box-sizing: border-box;
+      width: 100%;
+    }
+  }
+
+  .quick { display: flex; gap: 6px; flex-wrap: wrap; justify-content: center; }
+  .quick-chip {
+    min-height: 40px;
+    padding: 0 12px;
+    border-radius: 999px;
+    border: 2px solid $ink;
+    background: #fff;
+    color: $ink;
+    font-size: 14px;
+    font-weight: 700;
+  }
+
+  .oath {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-height: 44px;
+    font-size: 14px;
+    font-weight: 500;
+    input { width: 22px; height: 22px; accent-color: $brown; }
+  }
+
+  .btn:disabled { opacity: 0.45; box-shadow: none; }
 }
 
 // ---------- אנימציות ----------

@@ -54,6 +54,19 @@ export class SufganometerPage implements OnInit, OnDestroy {
   readonly notice = signal<Notice | null>(null);
   readonly resetAsk = signal(false);
 
+  // ---------- הזנה ידנית ----------
+  readonly manualOpen = signal(false);
+  readonly manualSteps = signal(0);
+  readonly manualOath = signal(false);
+  readonly canAddManual = computed(() => this.manualOath() && this.manualSteps() > 0 && this.manualSteps() <= 50000);
+
+  // ---------- מחיקה מהתור ----------
+  readonly deleteIndex = signal<number | null>(null);
+  readonly deleteTarget = computed(() => {
+    const i = this.deleteIndex();
+    return i === null ? null : (this.s().slots[i] ?? null);
+  });
+
   // ---------- חגיגה ----------
   /** משתנה בכל כניסה מחדש למסך כדי להריץ שוב את החגיגה. הדעיכה אחרי כ-4 שניות היא ב-CSS */
   readonly sceneKey = signal(0);
@@ -278,6 +291,46 @@ export class SufganometerPage implements OnInit, OnDestroy {
 
   closeNotice(): void {
     this.notice.set(null);
+  }
+
+  openManual(): void {
+    this.manualSteps.set(0);
+    this.manualOath.set(false);
+    this.manualOpen.set(true);
+  }
+
+  onManualInput(event: Event): void {
+    const v = parseInt((event.target as HTMLInputElement).value, 10);
+    this.manualSteps.set(Number.isFinite(v) && v > 0 ? Math.min(v, 50000) : 0);
+  }
+
+  addQuick(n: number): void {
+    this.manualSteps.update((v) => Math.min(50000, v + n));
+  }
+
+  confirmManual(): void {
+    if (!this.canAddManual()) return;
+    const n = this.manualSteps();
+    const target = this.s().viewed;
+    this.pedo.addManualSteps(n);
+    this.manualOpen.set(false);
+    this.notice.set({
+      title: 'נרשם!',
+      body: target
+        ? `${fmt(n)} צעדים ירדו מה${target.type.name}. הסופגנייה סומכת עליך.`
+        : `${fmt(n)} צעדים נכנסו לבנק, ויקוזזו מהסופגנייה הבאה.`,
+      gold: false,
+    });
+  }
+
+  askDelete(index: number): void {
+    this.deleteIndex.set(index);
+  }
+
+  confirmDelete(): void {
+    const i = this.deleteIndex();
+    this.deleteIndex.set(null);
+    if (i !== null) this.pedo.removeDonut(i);
   }
 
   /** איפוס מלא: צעדים, סופגניות, בנק והדמיה – הכל לאפס */
