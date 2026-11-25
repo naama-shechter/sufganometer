@@ -1,6 +1,8 @@
 package com.sufganometer.app;
 
+import android.Manifest;
 import android.content.Context;
+import android.content.Intent;
 import android.hardware.Sensor;
 import android.hardware.SensorEvent;
 import android.hardware.SensorEventListener;
@@ -14,6 +16,9 @@ import com.getcapacitor.Plugin;
 import com.getcapacitor.PluginCall;
 import com.getcapacitor.PluginMethod;
 import com.getcapacitor.annotation.CapacitorPlugin;
+import com.getcapacitor.annotation.Permission;
+
+import androidx.core.content.ContextCompat;
 
 /**
  * Reads the raw hardware step counter (TYPE_STEP_COUNTER).
@@ -22,7 +27,10 @@ import com.getcapacitor.annotation.CapacitorPlugin;
  * The app stores the last value it saw and, when it comes back to the foreground, adds the
  * difference — so steps taken while the app was in the background are not lost.
  */
-@CapacitorPlugin(name = "StepSensor")
+@CapacitorPlugin(
+    name = "StepSensor",
+    permissions = { @Permission(alias = "notifications", strings = { Manifest.permission.POST_NOTIFICATIONS }) }
+)
 public class StepSensorPlugin extends Plugin {
 
     private static final long READ_TIMEOUT_MS = 5000;
@@ -118,6 +126,32 @@ public class StepSensorPlugin extends Plugin {
             sensorManager.unregisterListener(liveListener);
         }
         liveListener = null;
+    }
+
+    /**
+     * Start (or update) the foreground tracking service: keeps the step counter counting in the
+     * background and shows the steps left in a notification. Call only while the app is open.
+     */
+    @PluginMethod
+    public void track(PluginCall call) {
+        Intent i = new Intent(getContext(), StepTrackingService.class);
+        i.setAction(StepTrackingService.ACTION_TRACK);
+        i.putExtra("name", call.getString("name", ""));
+        i.putExtra("remaining", Math.round(call.getDouble("remaining", 0.0)));
+        i.putExtra("total", Math.round(call.getDouble("total", 0.0)));
+        try {
+            ContextCompat.startForegroundService(getContext(), i);
+            call.resolve();
+        } catch (Exception e) {
+            call.reject("Could not start step tracking: " + e.getMessage());
+        }
+    }
+
+    /** Stop the tracking service and remove its notification (no donut left in the queue). */
+    @PluginMethod
+    public void stopTracking(PluginCall call) {
+        getContext().stopService(new Intent(getContext(), StepTrackingService.class));
+        call.resolve();
     }
 
     @Override

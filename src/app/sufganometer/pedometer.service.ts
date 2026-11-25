@@ -1,8 +1,8 @@
-import { Injectable, NgZone, computed, inject, signal } from '@angular/core';
+import { Injectable, NgZone, computed, effect, inject, signal, untracked } from '@angular/core';
 import { Capacitor, PluginListenerHandle, registerPlugin } from '@capacitor/core';
 import { App } from '@capacitor/app';
 import { CapacitorPedometer } from '@capgo/capacitor-pedometer';
-import { DonutType, EatenDonut, computeStatus, distribute, stepsFor } from './donut-calc';
+import { BurnStatus, DonutType, EatenDonut, computeStatus, distribute, stepsFor } from './donut-calc';
 
 export type SensorState =
   | 'checking'
@@ -46,6 +46,10 @@ interface StepSensorPlugin {
   start(): Promise<void>;
   stop(): Promise<void>;
   addListener(event: 'count', fn: (r: StepReading) => void): Promise<PluginListenerHandle>;
+  /** שירות חזית: ממשיך לספור ברקע ומציג בהתראה כמה צעדים נשארו */
+  track(opts: { name: string; remaining: number; total: number }): Promise<void>;
+  stopTracking(): Promise<void>;
+  requestPermissions(opts: { permissions: 'notifications'[] }): Promise<{ notifications: string }>;
 }
 const StepSensor = registerPlugin<StepSensorPlugin>('StepSensor');
 
@@ -98,6 +102,18 @@ export class PedometerService {
   private wantLive = false;
   private initialized = false;
   private simTimer?: ReturnType<typeof setInterval>;
+  private trackingOn = false;
+  private lastTracked?: { name: string; remaining: number; total: number };
+  private notifAsked = false;
+
+  constructor() {
+    // Android: התראת "סופר צעדים" (שירות חזית) רק כשיש סופגנייה בתור
+    effect(() => {
+      const st = this.status();
+      const live = this.sensor() === 'live';
+      untracked(() => this.syncTracking(live ? st : null));
+    });
+  }
 
   async init(): Promise<void> {
     if (this.initialized) return;
@@ -357,6 +373,8 @@ export class PedometerService {
 
   private async onPause(): Promise<void> {
     this.save();
+    // לפני היציאה לרקע – לוודא שההתראה מעודכנת במצב האחרון
+    if (this.sensor() === 'live') this.syncTracking(this.status(), true);
     if (this.wantLive) await this.stopLiveUpdates();
   }
 
@@ -368,6 +386,44 @@ export class PedometerService {
     if (this.sensor() === 'denied' || this.sensor() === 'needs-permission') {
       const perm = await CapacitorPedometer.checkPermissions();
       if (perm.activityRecognition === 'granted') await this.startLive();
+    }
+  }
+
+  /** מפעיל / מעדכן / עוצר את שירות הספירה ברקע לפי מצב התור */
+  private syncTracking(st: BurnStatus | null, force = false): void {
+    if (!this.isAndroid) return;
+    const cur = st?.current;
+    if (!st || !st.hasDebt || !cur) {
+      if (this.trackingOn) {
+        this.trackingOn = false;
+        this.lastTracked = undefined;
+        void StepSensor.stopTracking().catch(() => undefined);
+      }
+      return;
+    }
+    const payload = { name: cur.type.name, remaining: cur.left, total: st.stepsLeftTotal };
+    const last = this.lastTracked;
+    const changed =
+      force || !this.trackingOn || !last || last.name !== payload.name || Math.abs(last.total - payload.total) >= 25;
+    if (!changed) return;
+    this.lastTracked = payload;
+    this.trackingOn = true;
+    void this.askNotificationsOnce()
+      .then(() => StepSensor.track(payload))
+      .catch((err) => {
+        console.warn('[Sufganometer] background tracking not started', err);
+        this.trackingOn = false;
+      });
+  }
+
+  /** אנדרואיד 13+: הרשאת התראות, פעם אחת. גם אם סירבו – הספירה ברקע עדיין עובדת */
+  private async askNotificationsOnce(): Promise<void> {
+    if (this.notifAsked) return;
+    this.notifAsked = true;
+    try {
+      await StepSensor.requestPermissions({ permissions: ['notifications'] });
+    } catch {
+      /* לא קריטי */
     }
   }
 
