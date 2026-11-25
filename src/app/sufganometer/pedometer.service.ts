@@ -2,7 +2,18 @@ import { Injectable, NgZone, computed, effect, inject, signal, untracked } from 
 import { Capacitor, PluginListenerHandle, registerPlugin } from '@capacitor/core';
 import { App } from '@capacitor/app';
 import { CapacitorPedometer } from '@capgo/capacitor-pedometer';
-import { BurnStatus, DonutType, EatenDonut, computeStatus, distribute, eatenFields, stepsFor } from './donut-calc';
+import {
+  BurnStatus,
+  CustomChoice,
+  DonutType,
+  EatenDonut,
+  SavedType,
+  buildCustomType,
+  computeStatus,
+  distribute,
+  eatenFields,
+  stepsFor,
+} from './donut-calc';
 
 export type SensorState =
   | 'checking'
@@ -27,6 +38,8 @@ interface SavedState {
   trackingStart: number;
   /** צעדים שהוזנו ידנית (לא מהחיישן) */
   manual?: number;
+  /** "הסופגניות שלי" – סוגים שהמשתמש בנה ושמר */
+  savedTypes?: SavedType[];
   /** Android: הערך הגולמי האחרון של מונה הצעדים, וזמן האתחול שאליו הוא שייך */
   lastRaw?: number | null;
   lastBoot?: number;
@@ -83,6 +96,8 @@ export class PedometerService {
   readonly bank = signal(0);
   /** צעדים שהוזנו ידנית */
   readonly manual = signal(0);
+  /** "הסופגניות שלי" – סוגים שנבנו ונשמרו כאפשרויות */
+  readonly savedTypes = signal<SavedType[]>([]);
   /** כל הצעדים שנספרו – מהחיישן ומהזנה ידנית */
   readonly countedSteps = computed(() => this.steps() + this.manual());
   /** איזו סופגנייה מהתור נבחרה לשריפה (null = הראשונה שעוד לא נשרפה) */
@@ -214,6 +229,29 @@ export class PedometerService {
     this.eaten.set([]);
     this.bank.set(0);
     this.focus.set(null);
+    this.save();
+  }
+
+  /** שומר סופגנייה שנבנתה ברשימת האפשרויות (אם אותה סופגנייה כבר שמורה – מחזיר אותה) */
+  saveCustomType(choice: CustomChoice): SavedType {
+    const t = buildCustomType(choice);
+    const same = this.savedTypes().find((x) => x.name === t.name && x.kcal === t.kcal);
+    if (same) return same;
+    const saved: SavedType = { ...t, id: 'saved-' + Date.now(), choice: { ...choice } };
+    this.savedTypes.update((list) => [...list, saved]);
+    this.save();
+    return saved;
+  }
+
+  /** עריכת סופגנייה שמורה. סופגניות שכבר נאכלו נשארות כמו שהיו */
+  updateSavedType(id: string, choice: CustomChoice): void {
+    const t = buildCustomType(choice);
+    this.savedTypes.update((list) => list.map((x) => (x.id === id ? { ...t, id, choice: { ...choice } } : x)));
+    this.save();
+  }
+
+  removeSavedType(id: string): void {
+    this.savedTypes.update((list) => list.filter((x) => x.id !== id));
     this.save();
   }
 
@@ -455,6 +493,7 @@ export class PedometerService {
       this.focus.set(saved.focus ?? null);
       this.trackingStart = saved.trackingStart ?? 0;
       this.manual.set(saved.manual ?? 0);
+      this.savedTypes.set(saved.savedTypes ?? []);
       this.lastRaw = saved.lastRaw ?? null;
       this.lastBoot = saved.lastBoot ?? 0;
     } catch {
@@ -470,6 +509,7 @@ export class PedometerService {
       focus: this.focus(),
       trackingStart: this.trackingStart,
       manual: this.manual(),
+      savedTypes: this.savedTypes(),
       lastRaw: this.lastRaw,
       lastBoot: this.lastBoot,
     };

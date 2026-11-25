@@ -101,8 +101,18 @@ export function typeOf(d: EatenDonut): DonutType {
 }
 
 /** רשומת סופגנייה לשמירה מסוג נתון */
+/** סופגנייה שנבנתה ונשמרה ברשימת האפשרויות ("הסופגניות שלי") */
+export interface SavedType extends DonutType {
+  choice: CustomChoice;
+}
+
+/** מזהה של סופגנייה שהמשתמש בנה (חד-פעמית או שמורה) */
+export function isCustomId(id: string): boolean {
+  return id === 'custom' || id.startsWith('saved-');
+}
+
 export function eatenFields(type: DonutType): Pick<EatenDonut, 'typeId' | 'custom'> {
-  return type.id === 'custom'
+  return isCustomId(type.id)
     ? { typeId: 'custom', custom: { name: type.name, kcal: type.kcal, topping: type.topping } }
     : { typeId: type.id, custom: undefined };
 }

@@ -9,6 +9,8 @@ import {
   CUSTOM_TOPPINGS,
   DONUT_TYPES,
   DonutType,
+  CustomChoice,
+  SavedType,
   buildCustomType,
   fmt,
   ringColor,
@@ -72,21 +74,24 @@ export class SufganometerPage implements OnInit, OnDestroy {
   readonly fillings = CUSTOM_FILLINGS;
   readonly toppings = CUSTOM_TOPPINGS;
   readonly customOpen = signal(false);
+  /** עריכה של סופגנייה שמורה (null = בנייה חדשה) */
+  readonly customEditId = signal<string | null>(null);
+  readonly customDeleteAsk = signal(false);
+  readonly savedTypes = computed(() => this.pedo.savedTypes());
   readonly cSize = signal('regular');
   readonly cFilling = signal('jam');
   readonly cTopping = signal('sugar');
   readonly cExact = signal(false);
   readonly cExactKcal = signal(0);
   readonly cName = signal('');
-  readonly customType = computed(() =>
-    buildCustomType({
-      size: this.cSize(),
-      filling: this.cFilling(),
-      topping: this.cTopping(),
-      exactKcal: this.cExact() ? this.cExactKcal() : null,
-      name: this.cName(),
-    }),
-  );
+  readonly customChoice = computed<CustomChoice>(() => ({
+    size: this.cSize(),
+    filling: this.cFilling(),
+    topping: this.cTopping(),
+    exactKcal: this.cExact() ? this.cExactKcal() : null,
+    name: this.cName(),
+  }));
+  readonly customType = computed(() => buildCustomType(this.customChoice()));
   readonly customSteps = computed(() => fmt(stepsFor(this.customType(), this.pedo.kcalPerStep)));
   readonly canAddCustom = computed(() => !this.cExact() || (this.cExactKcal() >= 30 && this.cExactKcal() <= 2000));
 
@@ -213,7 +218,9 @@ export class SufganometerPage implements OnInit, OnDestroy {
 
   readonly sheetTitle = computed(() =>
     this.customOpen()
-      ? 'סופגנייה אחרת'
+      ? this.customEditId()
+        ? 'עריכת סופגנייה'
+        : 'סופגנייה אחרת'
       : this.sheet() === 'change'
         ? 'לאיזו סופגנייה להחליף?'
         : this.sheet() === 'queue'
@@ -221,7 +228,8 @@ export class SufganometerPage implements OnInit, OnDestroy {
           : 'איזו סופגנייה נכנסה?',
   );
   readonly sheetSub = computed(() => {
-    if (this.customOpen()) return 'בוחרים גודל, מילוי וציפוי – ואנחנו מעריכים כמה קלוריות נכנסו';
+    if (this.customOpen() && this.customEditId()) return 'השינויים יחולו על הפעמים הבאות. סופגניות שכבר בתור לא ישתנו.';
+    if (this.customOpen()) return 'בוחרים גודל, מילוי וציפוי – ואנחנו מעריכים כמה קלוריות נכנסו. היא תישמר באפשרויות.';
     if (this.sheet() === 'change') return 'הצעדים שכבר נספרו לה יישארו, ויקוזזו לפי הגודל החדש';
     if (this.sheet() === 'queue') return 'בחרו איזו סופגנייה לשרוף עכשיו. מה שכבר נספר לכל אחת נשמר לה.';
     const bank = this.s().bank;
@@ -299,6 +307,8 @@ export class SufganometerPage implements OnInit, OnDestroy {
 
   closeSheet(): void {
     if (this.customOpen()) {
+      this.customEditId.set(null);
+      this.customDeleteAsk.set(false);
       this.customOpen.set(false); // חזרה מהבנייה לבחירת הסוגים
       return;
     }
@@ -312,7 +322,7 @@ export class SufganometerPage implements OnInit, OnDestroy {
     }
     const viewed = this.s().viewed;
     this.sheet.set(null);
-    if (!viewed || (type.id !== 'custom' && viewed.type.id === type.id)) return;
+    if (!viewed || (!type.id.startsWith('saved-') && type.id !== 'custom' && viewed.type.id === type.id)) return;
     this.pending.set(type);
   }
 
@@ -323,7 +333,31 @@ export class SufganometerPage implements OnInit, OnDestroy {
     this.cExact.set(false);
     this.cExactKcal.set(0);
     this.cName.set('');
+    this.customEditId.set(null);
+    this.customDeleteAsk.set(false);
     this.customOpen.set(true);
+  }
+
+  /** עריכת סופגנייה שמורה: פותח את מסך הבנייה עם הבחירות שלה */
+  editSaved(t: SavedType): void {
+    const c = t.choice;
+    this.cSize.set(c.size);
+    this.cFilling.set(c.filling);
+    this.cTopping.set(c.topping);
+    this.cExact.set(!!c.exactKcal);
+    this.cExactKcal.set(c.exactKcal ?? 0);
+    this.cName.set(c.name ?? '');
+    this.customEditId.set(t.id);
+    this.customDeleteAsk.set(false);
+    this.customOpen.set(true);
+  }
+
+  deleteSaved(): void {
+    const id = this.customEditId();
+    if (id) this.pedo.removeSavedType(id);
+    this.customDeleteAsk.set(false);
+    this.customEditId.set(null);
+    this.customOpen.set(false);
   }
 
   onExactInput(event: Event): void {
@@ -337,9 +371,17 @@ export class SufganometerPage implements OnInit, OnDestroy {
 
   confirmCustom(): void {
     if (!this.canAddCustom()) return;
-    const type = this.customType();
+    const editId = this.customEditId();
+    if (editId) {
+      // עריכה: רק שומרים, וחוזרים לרשימת הסוגים
+      this.pedo.updateSavedType(editId, this.customChoice());
+      this.customEditId.set(null);
+      this.customOpen.set(false);
+      return;
+    }
+    const saved = this.pedo.saveCustomType(this.customChoice());
     this.customOpen.set(false);
-    this.pickType(type);
+    this.pickType(saved);
   }
 
   showInDashboard(index: number, burned: boolean): void {
