@@ -216,10 +216,6 @@
       </button>
     </div>
 
-    @if (pedo.isAndroid && pedo.sensor() === 'live') {
-      <button type="button" class="help-link" (click)="bgHelpOpen.set(true)">הצעדים לא נספרים?</button>
-    }
-
     <div class="links">
       @if (pedo.sensor() === 'web') {
         <button type="button" class="link" (click)="pedo.addSteps(1000)">+1,000 צעדים (דמו)</button>
@@ -233,7 +229,7 @@
 </ion-content>
 
 <!-- ===== חגיגת "מותר לטגן" ===== -->
-@if (s().done && !sheet() && !pending() && !notice() && !resetAsk() && !manualOpen() && deleteIndex() === null && !welcomeOpen() && !bgHelpOpen()) {
+@if (s().done && !sheet() && !pending() && !notice() && !resetAsk() && !manualOpen() && deleteIndex() === null && !welcomeOpen()) {
   @for (k of [sceneKey()]; track k) {
   <div class="party" aria-hidden="true">
     @for (c of confetti; track $index) {
@@ -370,43 +366,12 @@
         <h2 id="welcome-title">בואו נתחיל לשרוף!</h2>
         <p>סופגנומטר סופר את הצעדים שלך ומוריד אותם מהסופגנייה האחרונה שנכנסה.</p>
         <ul class="perks">
-          <li><span class="perk-dot"></span>סופר מחיישן הצעדים של הטלפון, גם כשהאפליקציה סגורה</li>
+          <li><span class="perk-dot"></span>סופר מחיישן הצעדים של הטלפון</li>
+          <li><span class="perk-dot"></span>כשיש סופגנייה בתור, התראה קטנה ממשיכה לספור גם כשהאפליקציה סגורה</li>
           <li><span class="perk-dot"></span>בלי הרשמה ובלי חשבון – הכל נשמר רק אצלך</li>
-          <li><span class="perk-dot"></span>בהמשך תתבקשו לאשר גישה לצעדים בלבד</li>
         </ul>
         <button type="button" class="btn primary full" (click)="connectFromWelcome()">יאללה, לחבר את מד הצעדים</button>
         <button type="button" class="link" (click)="welcomeOpen.set(false)">אחר כך</button>
-      }
-    </div>
-  </div>
-}
-
-<!-- ===== הצעדים לא נספרים? ===== -->
-@if (bgHelpOpen()) {
-  <div class="backdrop center" dir="rtl">
-    <div class="dialog" role="dialog" aria-modal="true" aria-labelledby="bghelp-title">
-      <svg width="52" height="52" viewBox="0 0 24 24" fill="none" stroke="#B8571B" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9" /><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0" /></svg>
-      @if (pedo.hcReady() && !pedo.bgNotify()) {
-        <h2 id="bghelp-title">הצעדים לא נספרים?</h2>
-        <p>כרגע הטלפון עצמו סופר את הצעדים כשהאפליקציה סגורה. בחלק מהטלפונים זה עוד לא עובד.</p>
-        <p>אפשר לעבור לספירה אחרת, שעובדת בכל טלפון – אבל אז תופיע <b>התראה קבועה</b> ברקע כל עוד יש סופגנייה בתור.</p>
-        <button type="button" class="btn primary full" (click)="setBgNotify(true)">כן, אני רוצה</button>
-        <button type="button" class="link" (click)="bgHelpOpen.set(false)">לא תודה</button>
-      } @else if (pedo.hcReady()) {
-        <h2 id="bghelp-title">ספירה עם התראה פעילה</h2>
-        <p>כרגע הצעדים נספרים ברקע עם התראה קבועה. אפשר לחזור לספירה של הטלפון עצמו, בלי התראה.</p>
-        <button type="button" class="btn primary full" (click)="setBgNotify(false)">לחזור לספירה בלי התראה</button>
-        <button type="button" class="link" (click)="bgHelpOpen.set(false)">להשאיר כך</button>
-      } @else if (pedo.hcAvailable()) {
-        <h2 id="bghelp-title">הצעדים לא נספרים?</h2>
-        <p>כרגע הצעדים נספרים ברקע עם התראה קבועה, כי לא אושרה גישה ל-Health Connect.</p>
-        <p>אם תאשרו גישה לצעדים ב-Health Connect, הטלפון יספור לבד – בלי התראה.</p>
-        <button type="button" class="btn primary full" (click)="connectHealthFromHelp()">לאשר את Health Connect</button>
-        <button type="button" class="link" (click)="bgHelpOpen.set(false)">לא תודה</button>
-      } @else {
-        <h2 id="bghelp-title">הצעדים לא נספרים?</h2>
-        <p>הספירה ברקע פועלת עם התראה קבועה כל עוד יש סופגנייה בתור. אם ההתראה נעלמה, כדאי לבדוק בהגדרות הסוללה שהאפליקציה "ללא הגבלה".</p>
-        <button type="button" class="btn primary full" (click)="bgHelpOpen.set(false)">הבנתי</button>
       }
     </div>
   </div>

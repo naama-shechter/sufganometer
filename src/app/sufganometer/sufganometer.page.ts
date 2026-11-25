@@ -57,7 +57,6 @@ export class SufganometerPage implements OnInit, OnDestroy {
 
   // ---------- חלונות חיבור ----------
   readonly welcomeOpen = signal(false);
-  readonly bgHelpOpen = signal(false);
   private welcomeShown = false;
 
   // ---------- הזנה ידנית ----------
@@ -204,16 +203,6 @@ export class SufganometerPage implements OnInit, OnDestroy {
   async connectFromWelcome(): Promise<void> {
     await this.pedo.connect();
     if (this.pedo.sensor() === 'live') this.welcomeOpen.set(false);
-  }
-
-  setBgNotify(on: boolean): void {
-    if (this.pedo.bgNotify() !== on) this.pedo.toggleBgNotify();
-    this.bgHelpOpen.set(false);
-  }
-
-  async connectHealthFromHelp(): Promise<void> {
-    this.bgHelpOpen.set(false);
-    await this.pedo.connectHealth();
   }
 
   ngOnInit(): void {
