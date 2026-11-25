@@ -220,6 +220,23 @@
       </button>
     </div>
 
+    @if (pedo.isAndroid && pedo.sensor() === 'live') {
+      <div class="bg-mode">
+        @if (pedo.hcReady() && !pedo.bgNotify()) {
+          <span>ספירה ברקע דרך Health Connect, בלי התראה</span>
+          <button type="button" class="link" (click)="pedo.toggleBgNotify()">לא סופר? לעבור להתראה</button>
+        } @else if (pedo.hcReady()) {
+          <span>ספירה ברקע עם התראה</span>
+          <button type="button" class="link" (click)="pedo.toggleBgNotify()">חזרה ל-Health Connect</button>
+        } @else if (pedo.hcAvailable()) {
+          <span>ספירה ברקע עם התראה</span>
+          <button type="button" class="link" (click)="pedo.connectHealth()">חיבור ל-Health Connect (בלי התראה)</button>
+        } @else {
+          <span>ספירה ברקע עם התראה</span>
+        }
+      </div>
+    }
+
     <div class="links">
       @if (pedo.sensor() === 'web') {
         <button type="button" class="link" (click)="pedo.addSteps(1000)">+1,000 צעדים (דמו)</button>

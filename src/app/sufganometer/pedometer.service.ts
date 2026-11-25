@@ -2,6 +2,7 @@ import { Injectable, NgZone, computed, effect, inject, signal, untracked } from 
 import { Capacitor, PluginListenerHandle, registerPlugin } from '@capacitor/core';
 import { App } from '@capacitor/app';
 import { CapacitorPedometer } from '@capgo/capacitor-pedometer';
+import { Health } from '@capgo/capacitor-health';
 import { BurnStatus, DonutType, EatenDonut, computeStatus, distribute, stepsFor } from './donut-calc';
 
 export type SensorState =
@@ -30,6 +31,12 @@ interface SavedState {
   /** Android: הערך הגולמי האחרון של מונה הצעדים, וזמן האתחול שאליו הוא שייך */
   lastRaw?: number | null;
   lastBoot?: number;
+  /** מתי האפליקציה ראתה צעדים בפעם האחרונה (לשאילתת Health Connect על התקופה שבה הייתה ברקע) */
+  lastSeenAt?: number;
+  /** המשתמש בחר בספירה ברקע עם התראה (גיבוי, אם Health Connect לא סופר) */
+  bgNotify?: boolean;
+  /** כבר ביקשנו הרשאת Health Connect */
+  hcAsked?: boolean;
 }
 
 // אותו מפתח כמו קודם – השדות החדשים אופציונליים, כך שהנתונים הקיימים נשמרים
@@ -63,8 +70,9 @@ const REBOOT_TOLERANCE_MS = 2 * 60 * 1000;
  *
  * iOS  – בכל חזרה לאפליקציה שולפים מהמערכת את כל הצעדים מאז תחילת המעקב
  *        (עד 7 ימים אחורה), כולל כשהאפליקציה הייתה סגורה.
- * Android – מונה הצעדים של החומרה ממשיך לספור גם כשהאפליקציה סגורה. שומרים את הערך האחרון
- *           שראינו, ובכל חזרה לאפליקציה מוסיפים את ההפרש – כך צעדים מהרקע לא הולכים לאיבוד.
+ * Android – ברקע: Health Connect (באנדרואיד 14+ הטלפון סופר צעדים בעצמו, בלי שירות ובלי התראה).
+ *           בכל חזרה לאפליקציה לוקחים את המקסימום בין מה ש-Health Connect רשם לבין הפרש מונה החומרה,
+ *           כך ששום צעד לא נספר פעמיים. אם אין Health Connect (או שהמשתמש בחר) – שירות חזית עם התראה.
  */
 @Injectable({ providedIn: 'root' })
 export class PedometerService {
@@ -83,6 +91,14 @@ export class PedometerService {
   readonly bank = signal(0);
   /** צעדים שהוזנו ידנית */
   readonly manual = signal(0);
+  /** Health Connect זמין והרשאת קריאת צעדים ניתנה */
+  readonly hcReady = signal(false);
+  /** Health Connect קיים בטלפון (גם אם עוד לא אושר) */
+  readonly hcAvailable = signal(false);
+  /** המשתמש בחר בספירה ברקע עם התראה */
+  readonly bgNotify = signal(false);
+  /** האם להפעיל את שירות החזית (התראה) לספירה ברקע */
+  readonly useBackgroundService = computed(() => this.bgNotify() || !this.hcReady());
   /** כל הצעדים שנספרו – מהחיישן ומהזנה ידנית */
   readonly countedSteps = computed(() => this.steps() + this.manual());
   /** איזו סופגנייה מהתור נבחרה לשריפה (null = הראשונה שעוד לא נשרפה) */
@@ -99,6 +115,9 @@ export class PedometerService {
   private rawListener?: PluginListenerHandle;
   private lastRaw: number | null = null;
   private lastBoot = 0;
+  private lastSeenAt = 0;
+  private hcAsked = false;
+  private hcChecked = false;
   private wantLive = false;
   private initialized = false;
   private simTimer?: ReturnType<typeof setInterval>;
@@ -111,7 +130,8 @@ export class PedometerService {
     effect(() => {
       const st = this.status();
       const live = this.sensor() === 'live';
-      untracked(() => this.syncTracking(live ? st : null));
+      const useService = this.useBackgroundService();
+      untracked(() => this.syncTracking(live && useService ? st : null));
     });
   }
 
@@ -213,6 +233,26 @@ export class PedometerService {
     this.eaten.set([]);
     this.bank.set(0);
     this.focus.set(null);
+    this.save();
+  }
+
+  /** מעבר בין ספירה ברקע דרך Health Connect לבין ספירה עם התראה */
+  toggleBgNotify(): void {
+    this.bgNotify.update((v) => !v);
+    this.save();
+  }
+
+  /** חיבור (או חיבור מחדש) ל-Health Connect */
+  async connectHealth(): Promise<void> {
+    if (!this.isAndroid) return;
+    try {
+      const r = await Health.requestAuthorization({ read: ['steps'] });
+      this.hcReady.set(r.readAuthorized.includes('steps'));
+      if (!this.hcReady()) await Health.openHealthConnectSettings();
+    } catch (err) {
+      console.warn('[Sufganometer] Health Connect authorization failed', err);
+    }
+    this.hcAsked = true;
     this.save();
   }
 
@@ -326,17 +366,82 @@ export class PedometerService {
 
   /** Android: קריאה אחת להשלמת צעדים מהרקע, ואז עדכונים חיים כל עוד האפליקציה פתוחה */
   private async startAndroidCounter(): Promise<void> {
+    await this.checkHealthConnect();
+
+    // השלמת צעדים מהתקופה שבה האפליקציה הייתה ברקע: המקסימום בין שני המקורות
+    let rawDelta = 0;
     try {
-      this.applyRaw(await StepSensor.getCount());
+      rawDelta = this.consumeRaw(await StepSensor.getCount());
     } catch (err) {
       console.warn('[Sufganometer] could not read step counter for catch-up', err);
     }
+    const hcDelta = this.hcReady() && this.lastSeenAt ? await this.healthStepsSince(this.lastSeenAt) : 0;
+    const delta = Math.max(rawDelta, hcDelta);
+    this.lastSeenAt = Date.now();
+    if (delta > 0) {
+      this.setTotalSteps(this.steps() + delta);
+    } else {
+      this.save();
+    }
+
     this.rawListener = await StepSensor.addListener('count', (r) => this.zone.run(() => this.applyRaw(r)));
     await StepSensor.start();
   }
 
-  /** מוסיף את ההפרש מאז הקריאה הקודמת של מונה החומרה */
+  /** בודק את Health Connect פעם אחת בכל הפעלה, ומבקש הרשאה בפעם הראשונה */
+  private async checkHealthConnect(): Promise<void> {
+    if (this.hcChecked) return;
+    this.hcChecked = true;
+    try {
+      const avail = await Health.isAvailable();
+      this.hcAvailable.set(avail.available);
+      if (!avail.available) return;
+      let status = await Health.checkAuthorization({ read: ['steps'] });
+      if (!status.readAuthorized.includes('steps') && !this.hcAsked) {
+        this.hcAsked = true;
+        status = await Health.requestAuthorization({ read: ['steps'] });
+      }
+      this.hcReady.set(status.readAuthorized.includes('steps'));
+      this.save();
+    } catch (err) {
+      console.warn('[Sufganometer] Health Connect not usable', err);
+      this.hcReady.set(false);
+    }
+  }
+
+  /** סך הצעדים ש-Health Connect רשם מאז זמן נתון (עד 7 ימים אחורה) */
+  private async healthStepsSince(since: number): Promise<number> {
+    const now = Date.now();
+    const start = Math.max(since, now - 7 * 24 * 60 * 60 * 1000);
+    if (now - start < 60 * 1000) return 0;
+    try {
+      const r = await Health.queryAggregated({
+        dataType: 'steps',
+        startDate: new Date(start).toISOString(),
+        endDate: new Date(now).toISOString(),
+        bucket: 'hour',
+        aggregation: 'sum',
+      });
+      return Math.max(0, Math.round(r.samples.reduce((sum, b) => sum + (b.value || 0), 0)));
+    } catch (err) {
+      console.warn('[Sufganometer] Health Connect query failed', err);
+      return 0;
+    }
+  }
+
+  /** מוסיף את ההפרש מאז הקריאה הקודמת של מונה החומרה (בזמן שהאפליקציה פתוחה) */
   private applyRaw(r: StepReading): void {
+    const delta = this.consumeRaw(r);
+    this.lastSeenAt = Date.now();
+    if (delta > 0) {
+      this.setTotalSteps(this.steps() + delta);
+    } else {
+      this.save();
+    }
+  }
+
+  /** מחשב את ההפרש מאז הקריאה הקודמת של מונה החומרה ומעדכן את נקודת הייחוס */
+  private consumeRaw(r: StepReading): number {
     const count = Math.max(0, Math.round(r.count));
     const rebooted = this.lastBoot > 0 && Math.abs(r.bootTime - this.lastBoot) > REBOOT_TOLERANCE_MS;
     let delta = 0;
@@ -349,11 +454,7 @@ export class PedometerService {
     }
     this.lastRaw = count;
     this.lastBoot = r.bootTime;
-    if (delta > 0) {
-      this.setTotalSteps(this.steps() + delta);
-    } else {
-      this.save();
-    }
+    return delta;
   }
 
   /** באייפון: שולף מהמערכת את כל הצעדים מאז תחילת המעקב (גם כשהאפליקציה הייתה סגורה) */
@@ -372,6 +473,7 @@ export class PedometerService {
   }
 
   private async onPause(): Promise<void> {
+    if (this.sensor() === 'live') this.lastSeenAt = Date.now();
     this.save();
     // לפני היציאה לרקע – לוודא שההתראה מעודכנת במצב האחרון
     if (this.sensor() === 'live') this.syncTracking(this.status(), true);
@@ -448,6 +550,9 @@ export class PedometerService {
       this.manual.set(saved.manual ?? 0);
       this.lastRaw = saved.lastRaw ?? null;
       this.lastBoot = saved.lastBoot ?? 0;
+      this.lastSeenAt = saved.lastSeenAt ?? 0;
+      this.bgNotify.set(saved.bgNotify ?? false);
+      this.hcAsked = saved.hcAsked ?? false;
     } catch {
       /* נתונים פגומים – מתחילים מחדש */
     }
@@ -463,6 +568,9 @@ export class PedometerService {
       manual: this.manual(),
       lastRaw: this.lastRaw,
       lastBoot: this.lastBoot,
+      lastSeenAt: this.lastSeenAt,
+      bgNotify: this.bgNotify(),
+      hcAsked: this.hcAsked,
     };
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
