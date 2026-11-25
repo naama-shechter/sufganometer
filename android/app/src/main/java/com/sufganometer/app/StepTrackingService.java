@@ -140,6 +140,11 @@ public class StepTrackingService extends Service implements SensorEventListener 
         return NumberFormat.getIntegerInstance(new Locale("he", "IL")).format(Math.max(0, n));
     }
 
+    /** "ל" + שם. שם שכבר מיודע ("הפיסטוק מהמאפייה") → "לפיסטוק מהמאפייה" */
+    private static String toName(String n) {
+        return n.startsWith("ה") ? "ל" + n.substring(1) : "ל" + n;
+    }
+
     private PendingIntent openApp() {
         Intent i = new Intent(this, MainActivity.class);
         i.setFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP | Intent.FLAG_ACTIVITY_CLEAR_TOP);
@@ -148,7 +153,7 @@ public class StepTrackingService extends Service implements SensorEventListener 
 
     private Notification buildTracking(long leftCurrent, long leftTotal) {
         String text = leftCurrent > 0
-                ? "נשארו " + fmt(leftCurrent) + " צעדים ל" + name
+                ? "נשארו " + fmt(leftCurrent) + " צעדים " + toName(name)
                 : name + " נשרפה! עוד " + fmt(leftTotal) + " צעדים עד שמותר סופגנייה חדשה";
         return new NotificationCompat.Builder(this, CHANNEL_TRACKING)
                 .setSmallIcon(R.drawable.ic_stat_steps)
